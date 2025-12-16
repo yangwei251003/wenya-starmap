@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
 import './globals.css'
 
-const inter = Inter({ subsets: ['latin'] })
+// 使用系统字体替代Google Fonts以避免网络问题
+const fontClass = 'font-sans'
 
 export const metadata: Metadata = {
   title: '问芽星图 - WenYa StarMap',
@@ -16,7 +16,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-CN">
-      <body className={`${inter.className} bg-cosmos-900 text-white min-h-screen`}>
+      <body className={`${fontClass} bg-cosmos-900 text-white min-h-screen`}>
         <div className="relative min-h-screen">
           {/* 星空背景 */}
           <div className="fixed inset-0 overflow-hidden pointer-events-none">

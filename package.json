@@ -5,10 +5,13 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:static": "next build && next export",
     "start": "next start",
     "lint": "next lint",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "deploy": "npm run build && npx netlify-cli deploy --prod",
+    "deploy:preview": "npm run build && npx netlify-cli deploy"
   },
   "dependencies": {
     "clsx": "^2.0.0",

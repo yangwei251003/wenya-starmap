@@ -288,16 +288,41 @@ export async function callGLMAPI(
 // 用户认证相关API
 export const authAPI = {
   // 用户注册
-  register: (userData: {
+  register: async (userData: {
     username: string
     email: string
     password: string
     level: string
-  }) => apiPost('/auth/register', userData),
+  }) => {
+    try {
+      return await apiPost('/auth/register', userData)
+    } catch (error) {
+      return {
+        success: false,
+        error: {
+          code: 'NETWORK_ERROR',
+          message: '网络连接失败，请检查网络设置'
+        },
+        timestamp: new Date().toISOString()
+      }
+    }
+  },
 
   // 用户登录
-  login: (credentials: { email: string; password: string }) =>
-    apiPost('/auth/login', credentials),
+  login: async (credentials: { email: string; password: string }) => {
+    try {
+      return await apiPost('/auth/login', credentials)
+    } catch (error) {
+      return {
+        success: false,
+        error: {
+          code: 'NETWORK_ERROR',
+          message: '网络连接失败，请检查网络设置'
+        },
+        timestamp: new Date().toISOString()
+      }
+    }
+  },
 
   // 用户登出
   logout: () => apiPost('/auth/logout'),
