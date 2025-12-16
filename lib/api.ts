@@ -1,0 +1,360 @@
+// API客户端配置和基础函数
+
+import { APIResponse, APIError } from '@/types'
+import { AppError, ErrorType, ErrorSeverity, logger, errorHandler } from './error-handler'
+import { performanceMonitor } from './performance-monitor'
+
+// API基础URL配置
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api'
+
+// 智谱GLM API配置
+const GLM_API_KEY = process.env.GLM_API_KEY
+const GLM_API_URL = 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
+
+// API超时配置（毫秒）
+const API_TIMEOUT = 30000 // 30秒
+const GLM_API_TIMEOUT = 60000 // 60秒
+
+/**
+ * 带超时的fetch请求
+ */
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit = {},
+  timeout: number = API_TIMEOUT
+): Promise<Response> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeout)
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    })
+    clearTimeout(timeoutId)
+    return response
+  } catch (error) {
+    clearTimeout(timeoutId)
+    if ((error as Error).name === 'AbortError') {
+      throw new AppError(
+        '请求超时',
+        ErrorType.NETWORK_ERROR,
+        ErrorSeverity.HIGH,
+        '请求超时，请检查网络连接后重试'
+      )
+    }
+    throw error
+  }
+}
+
+// 通用API请求函数
+export async function apiRequest<T = any>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<APIResponse<T>> {
+  const url = `${API_BASE_URL}${endpoint}`
+  const method = options.method || 'GET'
+  const startTime = performance.now()
+  
+  const defaultHeaders = {
+    'Content-Type': 'application/json',
+  }
+
+  logger.info(`API Request: ${method} ${endpoint}`)
+
+  try {
+    const response = await fetchWithTimeout(url, {
+      ...options,
+      headers: {
+        ...defaultHeaders,
+        ...options.headers,
+      },
+    })
+
+    const duration = performance.now() - startTime
+    const data = await response.json()
+
+    // 记录性能指标
+    performanceMonitor.recordAPIMetric(
+      endpoint,
+      method,
+      duration,
+      response.ok,
+      response.status
+    )
+
+    if (!response.ok) {
+      const error = new AppError(
+        data.error?.message || '请求失败',
+        ErrorType.API_ERROR,
+        response.status >= 500 ? ErrorSeverity.HIGH : ErrorSeverity.MEDIUM,
+        data.error?.message || '请求失败，请稍后重试',
+        { endpoint, method, statusCode: response.status }
+      )
+      
+      errorHandler.handle(error)
+
+      return {
+        success: false,
+        error: {
+          code: 'API_ERROR',
+          message: error.userMessage,
+        },
+        timestamp: new Date().toISOString(),
+      }
+    }
+
+    logger.info(`API Success: ${method} ${endpoint}`, { duration: `${duration.toFixed(2)}ms` })
+
+    return {
+      success: true,
+      data,
+      timestamp: new Date().toISOString(),
+    }
+  } catch (error) {
+    const duration = performance.now() - startTime
+    
+    // 记录失败的API调用
+    performanceMonitor.recordAPIMetric(
+      endpoint,
+      method,
+      duration,
+      false
+    )
+
+    const appError = errorHandler.handle(error as Error, { endpoint, method })
+
+    return {
+      success: false,
+      error: {
+        code: appError.type,
+        message: appError.userMessage,
+      },
+      timestamp: new Date().toISOString(),
+    }
+  }
+}
+
+// GET请求
+export async function apiGet<T = any>(endpoint: string): Promise<APIResponse<T>> {
+  return apiRequest<T>(endpoint, { method: 'GET' })
+}
+
+// POST请求
+export async function apiPost<T = any>(
+  endpoint: string,
+  data?: any
+): Promise<APIResponse<T>> {
+  return apiRequest<T>(endpoint, {
+    method: 'POST',
+    body: data ? JSON.stringify(data) : undefined,
+  })
+}
+
+// PUT请求
+export async function apiPut<T = any>(
+  endpoint: string,
+  data?: any
+): Promise<APIResponse<T>> {
+  return apiRequest<T>(endpoint, {
+    method: 'PUT',
+    body: data ? JSON.stringify(data) : undefined,
+  })
+}
+
+// DELETE请求
+export async function apiDelete<T = any>(endpoint: string): Promise<APIResponse<T>> {
+  return apiRequest<T>(endpoint, { method: 'DELETE' })
+}
+
+// 智谱GLM API调用函数
+export async function callGLMAPI(
+  messages: Array<{ role: string; content: string }>,
+  model: string = 'glm-4'
+): Promise<APIResponse<string>> {
+  if (!GLM_API_KEY) {
+    const error = new AppError(
+      '智谱GLM API密钥未配置',
+      ErrorType.AI_SERVICE_ERROR,
+      ErrorSeverity.CRITICAL,
+      'AI服务配置错误，请联系管理员'
+    )
+    errorHandler.handle(error)
+
+    return {
+      success: false,
+      error: {
+        code: 'MISSING_API_KEY',
+        message: error.userMessage,
+      },
+      timestamp: new Date().toISOString(),
+    }
+  }
+
+  const startTime = performance.now()
+  logger.info('GLM API Request', { model, messageCount: messages.length })
+
+  try {
+    const response = await fetchWithTimeout(
+      GLM_API_URL,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${GLM_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: 0.7,
+          max_tokens: 1000,
+        }),
+      },
+      GLM_API_TIMEOUT
+    )
+
+    const duration = performance.now() - startTime
+    const data = await response.json()
+
+    // 记录GLM API性能
+    performanceMonitor.recordAPIMetric(
+      '/glm/chat',
+      'POST',
+      duration,
+      response.ok,
+      response.status,
+      { model, messageCount: messages.length }
+    )
+
+    if (!response.ok) {
+      const error = new AppError(
+        data.error?.message || 'GLM API调用失败',
+        ErrorType.AI_SERVICE_ERROR,
+        ErrorSeverity.HIGH,
+        'AI服务暂时不可用，请稍后重试',
+        { statusCode: response.status, model }
+      )
+      
+      errorHandler.handle(error)
+
+      return {
+        success: false,
+        error: {
+          code: 'GLM_API_ERROR',
+          message: error.userMessage,
+        },
+        timestamp: new Date().toISOString(),
+      }
+    }
+
+    const content = data.choices?.[0]?.message?.content || ''
+
+    logger.info('GLM API Success', { 
+      duration: `${duration.toFixed(2)}ms`,
+      responseLength: content.length 
+    })
+
+    return {
+      success: true,
+      data: content,
+      timestamp: new Date().toISOString(),
+    }
+  } catch (error) {
+    const duration = performance.now() - startTime
+    
+    // 记录失败的GLM API调用
+    performanceMonitor.recordAPIMetric(
+      '/glm/chat',
+      'POST',
+      duration,
+      false,
+      undefined,
+      { model, messageCount: messages.length }
+    )
+
+    const appError = errorHandler.handle(error as Error, { model, messageCount: messages.length })
+
+    return {
+      success: false,
+      error: {
+        code: appError.type,
+        message: appError.userMessage,
+      },
+      timestamp: new Date().toISOString(),
+    }
+  }
+}
+
+// 用户认证相关API
+export const authAPI = {
+  // 用户注册
+  register: (userData: {
+    username: string
+    email: string
+    password: string
+    level: string
+  }) => apiPost('/auth/register', userData),
+
+  // 用户登录
+  login: (credentials: { email: string; password: string }) =>
+    apiPost('/auth/login', credentials),
+
+  // 用户登出
+  logout: () => apiPost('/auth/logout'),
+
+  // 获取当前用户信息
+  getCurrentUser: () => apiGet('/auth/me'),
+}
+
+// 学习相关API
+export const learningAPI = {
+  // 获取学习路径
+  getLearningPath: (userId: string) => apiGet(`/learning/path/${userId}`),
+
+  // 更新学习进度
+  updateProgress: (progressData: any) => apiPost('/learning/progress', progressData),
+
+  // 获取推荐内容
+  getRecommendations: (userId: string) => apiGet(`/learning/recommendations/${userId}`),
+}
+
+// 课程相关API
+export const lessonAPI = {
+  // 获取课程列表
+  getLessons: (level?: string) => apiGet(`/lessons${level ? `?level=${level}` : ''}`),
+
+  // 获取课程详情
+  getLesson: (lessonId: string) => apiGet(`/lessons/${lessonId}`),
+
+  // 完成课程
+  completeLesson: (lessonId: string, data: any) =>
+    apiPost(`/lessons/${lessonId}/complete`, data),
+}
+
+// 练习相关API
+export const exerciseAPI = {
+  // 获取练习题
+  getExercises: (type?: string) => apiGet(`/exercises${type ? `?type=${type}` : ''}`),
+
+  // 提交练习答案
+  submitAnswer: (exerciseId: string, answer: any) =>
+    apiPost(`/exercises/${exerciseId}/submit`, answer),
+
+  // 获取练习结果
+  getResults: (sessionId: string) => apiGet(`/exercises/results/${sessionId}`),
+}
+
+// AI相关API
+export const aiAPI = {
+  // 生成学习内容
+  generateContent: (prompt: string, userLevel: string) =>
+    apiPost('/ai/generate-content', { prompt, userLevel }),
+
+  // 评估答案
+  evaluateAnswer: (question: string, answer: string) =>
+    apiPost('/ai/evaluate-answer', { question, answer }),
+
+  // AI对话
+  chat: (messages: Array<{ role: string; content: string }>) =>
+    apiPost('/ai/chat', { messages }),
+}
