@@ -77,11 +77,11 @@ export default function HomePage() {
 
           {/* 行动按钮 */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link href="/demo" className="btn-star text-lg px-8 py-4">
+              🚀 立即体验
+            </Link>
             <Link href="/auth/register" className="btn-sprout text-lg px-8 py-4">
               开始学习之旅
-            </Link>
-            <Link href="/dashboard" className="btn-star text-lg px-8 py-4">
-              探索星图
             </Link>
           </div>
         </div>

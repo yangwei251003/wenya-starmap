@@ -1,15 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // appDir is now stable in Next.js 14, no need for experimental flag
+  // Netlify部署配置
   images: {
     domains: [],
-    unoptimized: true, // Required for static export
+    unoptimized: true,
   },
-  // Static export configuration
-  output: 'export',
-  trailingSlash: true,
-  // Disable image optimization for static export
-  distDir: 'out',
+  // 使用默认构建模式以支持API路由
+  // output: 'export', // 注释掉以支持API路由
+  trailingSlash: false,
 }
 
 module.exports = nextConfig
