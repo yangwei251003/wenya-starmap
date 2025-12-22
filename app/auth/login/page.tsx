@@ -1,14 +1,19 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Sprout, Star, User, Zap } from 'lucide-react'
+import { Sprout, Star, User, Zap, Sparkles, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 
 export default function LoginPage() {
+  const [mounted, setMounted] = useState(false)
+  
+  useEffect(() => {
+    setMounted(true)
+  }, [])
   const router = useRouter()
   const [formData, setFormData] = useState({
     email: '',
@@ -100,47 +105,52 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center px-6 py-12">
       <div className="max-w-md w-full">
         {/* 头部 */}
-        <div className="text-center mb-8 animate-sprout-grow">
+        <div className={`text-center mb-8 ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
           <div className="flex items-center justify-center mb-4">
-            <Sprout className="w-8 h-8 text-sprout-400 mr-2" />
-            <Star className="w-6 h-6 text-star-400" />
+            <div className="relative">
+              <Sprout className="w-10 h-10 text-sprout-400 animate-bounce-soft" />
+              <Star className="w-6 h-6 text-star-400 absolute -top-1 -right-2 animate-star-shine" />
+            </div>
           </div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-sprout-400 to-star-400 bg-clip-text text-transparent mb-2">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-sprout-400 to-star-400 bg-clip-text text-transparent mb-3">
             欢迎回来
           </h1>
-          <p className="text-cosmos-300">继续你的学习之旅，让知识如星辰般闪耀</p>
+          <p className="text-cosmos-300 flex items-center justify-center gap-2">
+            <Sparkles className="w-4 h-4 text-star-400" />
+            继续你的学习之旅，让知识如星辰般闪耀
+            <Sparkles className="w-4 h-4 text-star-400" />
+          </p>
         </div>
 
         {/* 快捷演示账号 */}
-        <Card variant="cosmos" className="mb-6 animate-sprout-grow [animation-delay:0.1s]">
+        <Card variant="cosmos" className={`mb-6 ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`} style={{ animationDelay: '0.1s' }}>
           <CardHeader>
             <CardTitle className="text-center text-cosmos-200 flex items-center justify-center gap-2">
-              <Zap className="w-5 h-5 text-star-400" />
+              <Zap className="w-5 h-5 text-star-400 animate-pulse" />
               快速体验
+              <Star className="w-4 h-4 text-star-400 animate-star-shine" />
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {demoAccounts.map((account, index) => (
+              {demoAccounts.map((account) => (
                 <button
                   key={account.email}
                   onClick={() => handleDemoLogin(account)}
                   disabled={isLoading}
-                  className="w-full p-4 rounded-lg border-2 border-cosmos-600 bg-cosmos-800/50 hover:border-sprout-400 hover:bg-sprout-400/10 transition-all duration-200 text-left group disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full p-4 rounded-xl border-2 border-cosmos-600 bg-cosmos-800/50 hover:border-sprout-400 hover:bg-sprout-400/10 transition-all duration-300 text-left group disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02] hover:shadow-lg hover:shadow-sprout-400/20"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="text-2xl">{account.icon}</div>
+                  <div className="flex items-center gap-4">
+                    <div className="text-3xl group-hover:scale-110 transition-transform">{account.icon}</div>
                     <div className="flex-1">
-                      <div className="font-medium text-cosmos-200 group-hover:text-sprout-300 transition-colors">
+                      <div className="font-semibold text-cosmos-200 group-hover:text-sprout-300 transition-colors">
                         {account.name}
                       </div>
                       <div className="text-sm text-cosmos-400">
                         {account.description}
                       </div>
                     </div>
-                    <div className="text-cosmos-500 group-hover:text-sprout-400 transition-colors">
-                      →
-                    </div>
+                    <ArrowRight className="w-5 h-5 text-cosmos-500 group-hover:text-sprout-400 group-hover:translate-x-1 transition-all" />
                   </div>
                 </button>
               ))}
@@ -149,8 +159,8 @@ export default function LoginPage() {
             {isLoading && (
               <div className="text-center mt-4">
                 <div className="inline-flex items-center gap-2 text-sprout-400">
-                  <div className="w-4 h-4 border-2 border-sprout-400 border-t-transparent rounded-full animate-spin"></div>
-                  正在登录...
+                  <div className="w-5 h-5 border-2 border-sprout-400 border-t-transparent rounded-full animate-spin"></div>
+                  <span className="animate-pulse">正在登录...</span>
                 </div>
               </div>
             )}
@@ -168,7 +178,7 @@ export default function LoginPage() {
         </div>
 
         {/* 常规登录表单 */}
-        <Card variant="cosmos" className="animate-sprout-grow [animation-delay:0.2s]">
+        <Card variant="cosmos" className={`${mounted ? 'animate-fade-in-up' : 'opacity-0'}`} style={{ animationDelay: '0.2s' }}>
           <CardHeader>
             <CardTitle className="text-center text-cosmos-200 flex items-center justify-center gap-2">
               <User className="w-5 h-5" />
@@ -214,13 +224,21 @@ export default function LoginPage() {
         </Card>
 
         {/* 注册链接 */}
-        <div className="text-center mt-6 animate-sprout-grow [animation-delay:0.4s]">
-          <p className="text-cosmos-400">
-            还没有账户？{' '}
-            <Link href="/auth/register" className="text-sprout-400 hover:text-sprout-300 transition-colors">
+        <div className={`text-center mt-6 ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`} style={{ animationDelay: '0.4s' }}>
+          <p className="text-cosmos-400 flex items-center justify-center gap-2">
+            还没有账户？
+            <Link href="/auth/register" className="text-sprout-400 hover:text-sprout-300 transition-colors inline-flex items-center gap-1 group">
               立即注册
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Link>
           </p>
+        </div>
+
+        {/* 返回首页 */}
+        <div className={`text-center mt-4 ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`} style={{ animationDelay: '0.5s' }}>
+          <Link href="/" className="text-cosmos-500 hover:text-cosmos-300 transition-colors text-sm">
+            ← 返回首页
+          </Link>
         </div>
       </div>
     </div>

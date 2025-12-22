@@ -11,7 +11,7 @@ import {
   AchievementType
 } from '@/types'
 import { aiTutor } from './ai-tutor'
-import { exerciseAPI } from './api'
+import { getExercisesByLevel, getRandomExercises } from './exercises-data'
 
 /**
  * 练习会话接口
@@ -53,16 +53,20 @@ export class ExerciseService {
     level: EnglishLevel,
     count: number = 5
   ): Promise<Exercise[]> {
-    const prompt = this.buildExercisePrompt(type, level, count)
-    
     try {
-      const content = await aiTutor.generateContent(prompt, level)
-      const exercises = this.parseExercises(content, type, level)
-      return exercises
+      // 直接从题库获取练习题
+      const exercises = getExercisesByLevel(type, level, count)
+      
+      if (exercises.length > 0) {
+        return exercises
+      }
+      
+      // 如果没有找到，返回随机题目
+      return getRandomExercises(type, count)
     } catch (error) {
       console.error('生成练习题失败:', error)
-      // 返回默认练习题
-      return this.getDefaultExercises(type, level, count)
+      // 返回随机练习题作为后备
+      return getRandomExercises(type, count)
     }
   }
 
@@ -74,20 +78,51 @@ export class ExerciseService {
     userAnswer: string
   ): Promise<Evaluation> {
     try {
-      const evaluation = await aiTutor.evaluateAnswer(
-        exercise.question,
-        userAnswer
-      )
+      // 标准化答案（去除空格，转小写）
+      const normalizedUserAnswer = userAnswer.trim().toLowerCase()
+      const normalizedCorrectAnswer = exercise.correctAnswer.trim().toLowerCase()
       
-      // 如果是选择题，直接比较答案
-      if (exercise.type === 'multiple_choice') {
-        const isCorrect = userAnswer.trim().toLowerCase() === 
-                         exercise.correctAnswer.trim().toLowerCase()
-        evaluation.isCorrect = isCorrect
-        evaluation.score = isCorrect ? 100 : 0
+      // 选择题和填空题直接比较
+      if (exercise.type === 'multiple_choice' || exercise.type === 'fill_blank') {
+        const isCorrect = normalizedUserAnswer === normalizedCorrectAnswer
+        return {
+          isCorrect,
+          score: isCorrect ? 100 : 0,
+          feedback: isCorrect 
+            ? '✓ 正确！' + exercise.explanation 
+            : '✗ 错误。' + exercise.explanation
+        }
       }
       
-      return evaluation
+      // 听力题比较
+      if (exercise.type === 'listening') {
+        const isCorrect = normalizedUserAnswer === normalizedCorrectAnswer
+        return {
+          isCorrect,
+          score: isCorrect ? 100 : 0,
+          feedback: isCorrect 
+            ? '✓ 听得很准确！' + exercise.explanation 
+            : '✗ 再听一次试试。' + exercise.explanation
+        }
+      }
+      
+      // 口语、阅读、写作题 - 检查关键词
+      const keywords = normalizedCorrectAnswer.split(' ')
+      const matchedKeywords = keywords.filter(keyword => 
+        normalizedUserAnswer.includes(keyword)
+      )
+      const matchRate = matchedKeywords.length / keywords.length
+      
+      const isCorrect = matchRate >= 0.6 // 60%匹配度算正确
+      const score = Math.round(matchRate * 100)
+      
+      return {
+        isCorrect,
+        score,
+        feedback: isCorrect 
+          ? `✓ 很好！得分：${score}分。${exercise.explanation}` 
+          : `继续努力！得分：${score}分。${exercise.explanation}`
+      }
     } catch (error) {
       console.error('评估答案失败:', error)
       return {
@@ -240,152 +275,6 @@ export class ExerciseService {
       x: Math.random() * 100,
       y: Math.random() * 100
     }
-  }
-
-  /**
-   * 构建练习题生成提示
-   */
-  private buildExercisePrompt(
-    type: ExerciseType,
-    level: EnglishLevel,
-    count: number
-  ): string {
-    const typeDescriptions = {
-      multiple_choice: '选择题',
-      fill_blank: '填空题',
-      speaking: '口语练习',
-      listening: '听力练习',
-      reading_comprehension: '阅读理解',
-      writing: '写作练习'
-    }
-
-    return `请生成${count}道${typeDescriptions[type]}，难度适合${level}水平的学习者。
-
-请以JSON数组格式返回，每道题包含：
-- question: 问题内容
-- options: 选项数组（选择题需要）
-- correctAnswer: 正确答案
-- explanation: 答案解释
-- difficulty: 难度等级(1-5)
-
-只返回JSON数组，不要其他文字。`
-  }
-
-  /**
-   * 解析练习题
-   */
-  private parseExercises(
-    content: string,
-    type: ExerciseType,
-    level: EnglishLevel
-  ): Exercise[] {
-    try {
-      const parsed = JSON.parse(content)
-      const exercises = Array.isArray(parsed) ? parsed : [parsed]
-      
-      return exercises.map((ex, index) => ({
-        id: `exercise_${Date.now()}_${index}`,
-        type,
-        question: ex.question || '',
-        options: ex.options,
-        correctAnswer: ex.correctAnswer || '',
-        explanation: ex.explanation || '',
-        difficulty: ex.difficulty || 3
-      }))
-    } catch (error) {
-      console.error('解析练习题失败:', error)
-      return []
-    }
-  }
-
-  /**
-   * 获取默认练习题
-   */
-  private getDefaultExercises(
-    type: ExerciseType,
-    level: EnglishLevel,
-    count: number
-  ): Exercise[] {
-    const templates = this.getExerciseTemplates(type, level)
-    return templates.slice(0, count).map((template, index) => ({
-      ...template,
-      id: `exercise_${Date.now()}_${index}`
-    }))
-  }
-
-  /**
-   * 获取练习题模板
-   */
-  private getExerciseTemplates(
-    type: ExerciseType,
-    level: EnglishLevel
-  ): Exercise[] {
-    // 简单的默认练习题模板
-    const templates: Record<ExerciseType, Exercise[]> = {
-      multiple_choice: [
-        {
-          id: '',
-          type: 'multiple_choice',
-          question: 'What is the past tense of "go"?',
-          options: ['goed', 'went', 'gone', 'going'],
-          correctAnswer: 'went',
-          explanation: 'The past tense of "go" is "went".',
-          difficulty: 2
-        }
-      ],
-      fill_blank: [
-        {
-          id: '',
-          type: 'fill_blank',
-          question: 'I ___ to school every day. (go)',
-          correctAnswer: 'go',
-          explanation: 'Use the base form "go" for present simple.',
-          difficulty: 1
-        }
-      ],
-      speaking: [
-        {
-          id: '',
-          type: 'speaking',
-          question: 'Introduce yourself in English.',
-          correctAnswer: 'My name is... I am from...',
-          explanation: 'A good introduction includes your name and background.',
-          difficulty: 2
-        }
-      ],
-      listening: [
-        {
-          id: '',
-          type: 'listening',
-          question: 'Listen and answer: What is the main topic?',
-          correctAnswer: 'varies',
-          explanation: 'Focus on key words and main ideas.',
-          difficulty: 3
-        }
-      ],
-      reading_comprehension: [
-        {
-          id: '',
-          type: 'reading_comprehension',
-          question: 'Read the passage and answer: What is the main idea?',
-          correctAnswer: 'varies',
-          explanation: 'Look for topic sentences and key points.',
-          difficulty: 3
-        }
-      ],
-      writing: [
-        {
-          id: '',
-          type: 'writing',
-          question: 'Write a short paragraph about your hobby.',
-          correctAnswer: 'varies',
-          explanation: 'Include details and use descriptive language.',
-          difficulty: 4
-        }
-      ]
-    }
-
-    return templates[type] || []
   }
 }
 

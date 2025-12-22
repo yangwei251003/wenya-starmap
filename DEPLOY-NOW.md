@@ -122,11 +122,11 @@ https://你的站点名.netlify.app
 npm run build
 ```
 
-### 步骤 2: 访问 Netlify Drop
+**### 步骤 2: 访问 Netlify Drop
 
 1. 打开浏览器访问：https://app.netlify.com/drop
 2. 将 `.next` 文件夹拖拽到页面中
-3. 等待上传和部署完成
+3. 等待上传和部署完成**
 
 ### 步骤 3: 配置环境变量
 

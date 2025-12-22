@@ -1,106 +1,122 @@
-# 🌱 问芽星图 (WenYa StarMap)
+# 🌟 问芽星图 - WenYa StarMap
 
-<div align="center">
+AI驱动的智慧英语学习平台，让学习像星辰般闪耀。
 
-**AI驱动的英语学习平台 | 让学习像星辰般璀璨**
+## ✨ 功能特色
 
-[![Next.js](https://img.shields.io/badge/Next.js-14.0-black?style=flat-square&logo=next.js)](https://nextjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
-[![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.3-38B2AC?style=flat-square&logo=tailwind-css)](https://tailwindcss.com/)
-
-</div>
-
----
-
-## ✨ 特性
-
-- 🌱 **个性化学习路径** - 基于AI的智能学习路径生成
-- ⭐ **星图可视化** - 将学习进度转化为璀璨星空
-- 🎯 **多样化练习** - 听说读写全方位练习，AI实时反馈
-- 📊 **智能分析** - 详细的学习数据分析和进度追踪
-- 🎨 **精美设计** - 嫩芽成长+星空主题
-- 🤖 **AI导师** - 智谱GLM驱动的智能辅导系统
-- 🔒 **安全可靠** - 完善的错误处理和性能监控
-- ⚡ **高性能** - 优化的缓存策略和性能监控
+- 🤖 **AI智能对话** - 与AI导师实时互动练习英语
+- 📚 **个性化学习路径** - 根据水平定制学习计划
+- 🎯 **互动练习** - 听说读写全方位训练
+- ⭐ **成就系统** - 学习成果可视化，点亮专属星图
+- 📊 **进度追踪** - 实时监控学习进度
 
 ## 🚀 快速开始
 
-### 安装
-
+### 1. 安装依赖
 ```bash
 npm install
 ```
 
-### 配置环境变量
-
+### 2. 配置环境变量
 ```bash
+# 复制环境变量示例文件
 cp .env.example .env.local
-# 编辑 .env.local 填入你的 GLM_API_KEY
+
+# 编辑 .env.local，填入你的配置
 ```
 
-### 开发
-
+### 3. 启动开发服务器
 ```bash
 npm run dev
-# 打开 http://localhost:3000
 ```
 
-### 构建
+### 4. 访问应用
+- 主页: http://localhost:3001
+- 快速体验: http://localhost:3001/demo
 
-```bash
-npm run build
-npm start
-```
+## 📋 环境变量配置
 
-### 测试
+| 变量名 | 必需 | 说明 |
+|--------|------|------|
+| `GLM_API_KEY` | ✅ | 智谱GLM API密钥 |
+| `JWT_SECRET` | ✅ | JWT认证密钥 |
+| `NEXT_PUBLIC_APP_URL` | ❌ | 应用URL |
 
-```bash
-npm test
-```
-
-## 🚢 部署到Netlify
-
-```bash
-# 使用部署脚本
-.\deploy.ps1
-
-# 或使用npm命令
-npm run deploy
-```
-
-详细步骤请查看 [DEPLOYMENT.md](./DEPLOYMENT.md)
+### 获取GLM API Key
+1. 访问 [智谱AI开放平台](https://open.bigmodel.cn/)
+2. 注册并登录
+3. 进入控制台 → API Keys
+4. 创建新的API Key
 
 ## 📁 项目结构
 
 ```
-├── app/                    # Next.js页面
-├── components/             # React组件
-├── lib/                    # 核心服务
-├── hooks/                  # 自定义Hooks
-└── types/                  # TypeScript类型
+├── app/                    # Next.js 页面
+│   ├── api/               # API路由
+│   │   ├── auth/          # 认证接口
+│   │   └── ai/            # AI接口
+│   ├── auth/              # 登录/注册页面
+│   ├── dashboard/         # 学习仪表板
+│   ├── quiz/              # 练习中心
+│   ├── vocab/             # 词汇学习
+│   ├── chat/              # AI对话
+│   └── lesson/            # 课程学习
+├── components/            # React组件
+│   ├── ui/               # 通用UI组件
+│   ├── dashboard/        # 仪表板组件
+│   └── exercise/         # 练习组件
+├── lib/                   # 工具库
+├── hooks/                 # React Hooks
+└── types/                 # TypeScript类型
 ```
 
-## 🛠️ 技术栈
+## 🔧 API接口
 
-- Next.js 14 + TypeScript
-- TailwindCSS + Framer Motion
-- 智谱GLM API
-- Jest + React Testing Library
+详细的API文档请查看 [API-CONFIGURATION.md](./API-CONFIGURATION.md)
 
-## 📚 文档
+### 主要接口
+- `POST /api/auth/register` - 用户注册
+- `POST /api/auth/login` - 用户登录
+- `POST /api/ai/chat` - AI对话
 
-- [部署指南](./DEPLOYMENT.md)
+## 🌐 部署
+
+### Netlify部署
+```bash
+# 安装Netlify CLI
+npm install -g netlify-cli
+
+# 登录并部署
+netlify login
+netlify deploy --prod
+```
+
+详细部署指南请查看 [NETLIFY-DEPLOY-GUIDE.md](./NETLIFY-DEPLOY-GUIDE.md)
+
+## 🎮 演示账号
+
+无需注册，直接体验：
+- 访问 `/demo` 页面
+- 选择任意角色即可开始
+
+## 📄 文档
+
+- [API配置文档](./API-CONFIGURATION.md)
+- [部署指南](./NETLIFY-DEPLOY-GUIDE.md)
 - [快速部署](./QUICK-DEPLOY.md)
-- [性能和错误处理](./lib/SYSTEM-PERFORMANCE-ERROR-HANDLING.md)
 
-## 📄 许可证
+## 🛠 技术栈
 
-MIT
+- **框架**: Next.js 14
+- **语言**: TypeScript
+- **样式**: Tailwind CSS
+- **AI**: 智谱GLM API
+- **部署**: Netlify
+
+## 📝 License
+
+MIT License
 
 ---
 
-<div align="center">
-
-**用心打造，让英语学习像星辰般璀璨 ✨**
-
-</div>
+**让学习如星辰般闪耀** ✨

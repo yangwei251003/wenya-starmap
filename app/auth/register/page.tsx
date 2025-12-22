@@ -1,15 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Sprout, Star } from 'lucide-react'
+import { Sprout, Star, Sparkles, ArrowRight, Rocket, Coins, Gift } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { authAPI } from '@/lib/api'
 import { validatePassword, isValidEmail } from '@/lib/utils'
 import { EnglishLevel } from '@/types'
+import { starCoinService } from '@/lib/star-coin-service'
 
 interface FormData {
   username: string
@@ -30,6 +31,12 @@ interface FormErrors {
 
 export default function RegisterPage() {
   const router = useRouter()
+  const [mounted, setMounted] = useState(false)
+  
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+  
   const [formData, setFormData] = useState<FormData>({
     username: '',
     email: '',
@@ -106,6 +113,15 @@ export default function RegisterPage() {
       })
 
       if (response.success) {
+        // 保存用户信息到localStorage
+        const userData = response.data.user
+        localStorage.setItem('wenya_user', JSON.stringify(userData))
+        
+        // 发放新用户注册奖励
+        if (userData.isNewUser) {
+          starCoinService.grantRegisterBonus(userData.id)
+        }
+        
         // 注册成功，显示欢迎动画并跳转
         router.push('/dashboard?welcome=true')
       } else {
@@ -144,30 +160,36 @@ export default function RegisterPage() {
     <div className="min-h-screen flex items-center justify-center px-6 py-12">
       <div className="max-w-md w-full">
         {/* 头部 */}
-        <div className="text-center mb-8 animate-sprout-grow">
+        <div className={`text-center mb-8 ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
           <div className="flex items-center justify-center mb-4">
-            <Sprout className="w-8 h-8 text-sprout-400 mr-2" />
-            <Star className="w-6 h-6 text-star-400" />
+            <div className="relative">
+              <Rocket className="w-10 h-10 text-star-400 animate-bounce-soft" />
+              <Sprout className="w-6 h-6 text-sprout-400 absolute -bottom-1 -right-2" />
+            </div>
           </div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-sprout-400 to-star-400 bg-clip-text text-transparent mb-2">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-sprout-400 to-star-400 bg-clip-text text-transparent mb-3">
             开始学习之旅
           </h1>
-          <p className="text-cosmos-300">创建你的专属星图，让每一次学习都闪耀如星辰</p>
+          <p className="text-cosmos-300 flex items-center justify-center gap-2">
+            <Sparkles className="w-4 h-4 text-star-400" />
+            创建你的专属星图，让每一次学习都闪耀如星辰
+            <Sparkles className="w-4 h-4 text-star-400" />
+          </p>
         </div>
 
         {/* 进度指示器 */}
-        <div className="flex items-center justify-center mb-8">
+        <div className={`flex items-center justify-center mb-8 ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`} style={{ animationDelay: '0.1s' }}>
           <div className="flex items-center space-x-4">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all duration-300 ${
-              currentStep >= 1 ? 'bg-sprout-500 text-white' : 'bg-cosmos-700 text-cosmos-400'
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium transition-all duration-500 ${
+              currentStep >= 1 ? 'bg-gradient-to-br from-sprout-400 to-sprout-600 text-white shadow-lg shadow-sprout-400/30' : 'bg-cosmos-700 text-cosmos-400'
             }`}>
-              1
+              {currentStep > 1 ? <Star className="w-5 h-5" /> : '1'}
             </div>
-            <div className={`w-12 h-1 rounded transition-all duration-300 ${
-              currentStep >= 2 ? 'bg-sprout-500' : 'bg-cosmos-700'
+            <div className={`w-16 h-1.5 rounded-full transition-all duration-500 ${
+              currentStep >= 2 ? 'bg-gradient-to-r from-sprout-500 to-star-500' : 'bg-cosmos-700'
             }`} />
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all duration-300 ${
-              currentStep >= 2 ? 'bg-star-500 text-cosmos-900' : 'bg-cosmos-700 text-cosmos-400'
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium transition-all duration-500 ${
+              currentStep >= 2 ? 'bg-gradient-to-br from-star-400 to-star-600 text-cosmos-900 shadow-lg shadow-star-400/30' : 'bg-cosmos-700 text-cosmos-400'
             }`}>
               2
             </div>
@@ -175,7 +197,7 @@ export default function RegisterPage() {
         </div>
 
         {/* 注册表单 */}
-        <Card variant="cosmos" className="animate-sprout-grow [animation-delay:0.2s]">
+        <Card variant="cosmos" className={`${mounted ? 'animate-fade-in-up' : 'opacity-0'}`} style={{ animationDelay: '0.2s' }}>
           <CardHeader>
             <CardTitle className="text-center text-cosmos-200">
               {currentStep === 1 ? '基本信息' : '安全设置'}
@@ -297,13 +319,21 @@ export default function RegisterPage() {
         </Card>
 
         {/* 登录链接 */}
-        <div className="text-center mt-6 animate-sprout-grow [animation-delay:0.4s]">
-          <p className="text-cosmos-400">
-            已有账户？{' '}
-            <Link href="/auth/login" className="text-sprout-400 hover:text-sprout-300 transition-colors">
+        <div className={`text-center mt-6 ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`} style={{ animationDelay: '0.4s' }}>
+          <p className="text-cosmos-400 flex items-center justify-center gap-2">
+            已有账户？
+            <Link href="/auth/login" className="text-sprout-400 hover:text-sprout-300 transition-colors inline-flex items-center gap-1 group">
               立即登录
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Link>
           </p>
+        </div>
+
+        {/* 返回首页 */}
+        <div className={`text-center mt-4 ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`} style={{ animationDelay: '0.5s' }}>
+          <Link href="/" className="text-cosmos-500 hover:text-cosmos-300 transition-colors text-sm">
+            ← 返回首页
+          </Link>
         </div>
       </div>
     </div>

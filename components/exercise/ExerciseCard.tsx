@@ -1,9 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Exercise, Evaluation } from '@/types'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
+import { Volume2, VolumeX, RefreshCw } from 'lucide-react'
+import { speechService } from '@/lib/speech-service'
 
 interface ExerciseCardProps {
   exercise: Exercise
@@ -24,6 +26,32 @@ export function ExerciseCard({
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showFeedback, setShowFeedback] = useState(false)
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false)
+
+  // 听力题自动播放
+  useEffect(() => {
+    if (exercise.type === 'listening' && exercise.audioText) {
+      playAudio()
+    }
+  }, [exercise.id])
+
+  const playAudio = async () => {
+    if (isPlayingAudio) {
+      speechService.stop()
+      setIsPlayingAudio(false)
+      return
+    }
+
+    setIsPlayingAudio(true)
+    try {
+      const text = exercise.audioText || exercise.question.replace(/🔊.*?:/g, '').trim()
+      await speechService.speak(text, { rate: 0.8, pitch: 1 })
+    } catch (error) {
+      console.error('音频播放失败:', error)
+    } finally {
+      setIsPlayingAudio(false)
+    }
+  }
 
   const handleSubmit = async () => {
     if (!userAnswer.trim()) return
@@ -66,6 +94,65 @@ export function ExerciseCard({
                 <span className="text-cosmos-100">{option}</span>
               </button>
             ))}
+          </div>
+        )
+
+      case 'listening':
+      case 'reading_comprehension':
+        return (
+          <div className="space-y-4">
+            {/* 听力题播放按钮 */}
+            {exercise.type === 'listening' && (
+              <div className="flex justify-center mb-4">
+                <button
+                  onClick={playAudio}
+                  className={`flex items-center gap-2 px-6 py-3 rounded-lg transition-all ${
+                    isPlayingAudio
+                      ? 'bg-red-400/20 hover:bg-red-400/30 border-2 border-red-400'
+                      : 'bg-purple-400/20 hover:bg-purple-400/30 border-2 border-purple-400'
+                  }`}
+                >
+                  {isPlayingAudio ? (
+                    <>
+                      <VolumeX className="w-6 h-6 text-red-400 animate-pulse" />
+                      <span className="text-red-400 font-medium">停止播放</span>
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 className="w-6 h-6 text-purple-400" />
+                      <span className="text-purple-400 font-medium">播放音频</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={playAudio}
+                  className="ml-2 p-3 rounded-lg bg-cosmos-700 hover:bg-cosmos-600 transition-all"
+                  title="重新播放"
+                >
+                  <RefreshCw className="w-5 h-5 text-cosmos-300" />
+                </button>
+              </div>
+            )}
+            
+            {/* 选项 */}
+            {exercise.options && (
+              <div className="space-y-2">
+                {exercise.options.map((option, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setUserAnswer(option)}
+                    disabled={showFeedback}
+                    className={`w-full p-4 text-left rounded-lg border-2 transition-all ${
+                      userAnswer === option
+                        ? 'border-star-400 bg-star-400/10'
+                        : 'border-cosmos-700 hover:border-star-400/50'
+                    } ${showFeedback ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                  >
+                    <span className="text-cosmos-100">{option}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )
 

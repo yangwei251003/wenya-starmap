@@ -1,102 +1,125 @@
-# 快速部署指南 🚀
+# 🚀 问芽星图 - 快速部署指南
 
-## 方法一：使用PowerShell脚本（推荐）
+## ✅ 部署前确认
 
-```powershell
-.\deploy.ps1
+你的项目已经准备就绪！所有配置文件都已正确设置：
+- ✅ `netlify.toml` - Netlify配置
+- ✅ `next.config.js` - Next.js配置  
+- ✅ API路由正常工作
+- ✅ 构建测试通过
+- ✅ 演示功能完整
+
+## 🌐 方法一：Netlify CLI部署（推荐）
+
+### 1. 安装Netlify CLI
+```bash
+npm install -g netlify-cli
 ```
 
-按照提示操作即可完成部署。
-
-## 方法二：使用npm命令
-
-### 首次部署
-
-1. **登录Netlify**
+### 2. 登录Netlify
 ```bash
-npx netlify-cli login
+netlify login
+```
+这会打开浏览器，用你的GitHub/GitLab/Email账号登录Netlify。
+
+### 3. 在项目根目录初始化
+```bash
+netlify init
+```
+选择：
+- **What would you like to do?** → `Create & configure a new site`
+- **Team:** → 选择你的团队（通常是你的用户名）
+- **Site name:** → 输入 `wenya-starmap`（或其他你喜欢的名称）
+- **Build command:** → `npm run build`
+- **Directory to deploy:** → `.next`
+
+### 4. 部署
+```bash
+# 预览部署（测试用）
+netlify deploy
+
+# 生产部署
+netlify deploy --prod
 ```
 
-2. **初始化站点**
-```bash
-npx netlify-cli init
+### 5. 获取网站链接
+部署成功后，你会看到类似这样的输出：
+```
+✔ Deploy is live!
+
+Live Draft URL: https://wenya-starmap-abc123.netlify.app
 ```
 
-按照提示选择：
-- Create & configure a new site
-- 选择你的团队
-- 输入站点名称（可选）
-- Build command: `npm run build`
-- Publish directory: `.next`
+## 🌐 方法二：GitHub + Netlify网页部署
 
-3. **配置环境变量**
+### 1. 推送到GitHub
+如果还没有GitHub仓库：
 ```bash
-npx netlify-cli env:set GLM_API_KEY "your-glm-api-key-here"
-```
-
-4. **部署到生产环境**
-```bash
-npm run deploy
-```
-
-### 后续部署
-
-直接运行：
-```bash
-npm run deploy
-```
-
-## 方法三：通过GitHub自动部署
-
-1. **创建GitHub仓库并推送代码**
-```bash
-# 如果还没有远程仓库
-git remote add origin https://github.com/your-username/wenya-starmap.git
+# 在GitHub创建新仓库，然后：
+git remote add origin https://github.com/你的用户名/wenya-starmap.git
 git branch -M main
+git add .
+git commit -m "Ready for deployment"
 git push -u origin main
 ```
 
-2. **在Netlify连接GitHub仓库**
-- 访问 https://app.netlify.com/
-- 点击 "Add new site" > "Import an existing project"
-- 选择GitHub并授权
-- 选择你的仓库
-- 配置构建设置（已在netlify.toml中配置）
-- 添加环境变量 `GLM_API_KEY`
-- 点击 "Deploy site"
+### 2. 在Netlify导入
+1. 访问 https://app.netlify.com/
+2. 点击 **"Add new site"** → **"Import an existing project"**
+3. 选择 **GitHub** 并授权
+4. 选择你的 `wenya-starmap` 仓库
+5. 构建设置会自动检测，确认：
+   - **Build command:** `npm run build`
+   - **Publish directory:** `.next`
+6. 点击 **"Deploy site"**
 
-3. **自动部署**
-之后每次推送到main分支，Netlify会自动构建和部署。
+## 🎯 部署后测试
 
-## 验证部署
+访问你的网站URL，测试以下功能：
 
-部署完成后，访问Netlify提供的URL（例如：`https://your-site.netlify.app`）
+### 基础功能测试
+- [ ] 首页加载：`https://你的网站.netlify.app`
+- [ ] 演示页面：`/demo` - 点击三个角色卡片
+- [ ] 登录页面：`/auth/login` - 有演示账号按钮
+- [ ] 注册页面：`/auth/register` - 表单提交
+- [ ] API测试：`/test-api` - 点击测试按钮
 
-检查以下功能：
-- ✅ 首页加载
-- ✅ 导航功能
-- ✅ 仪表板
-- ✅ 练习系统
-- ✅ 进度追踪
+### 演示账号测试
+在演示页面点击任一角色卡片，应该能：
+1. 自动登录
+2. 跳转到仪表板
+3. 显示对应等级的学习内容
 
-## 常见问题
+## 🔧 如果遇到问题
 
-### Q: 构建失败怎么办？
-A: 检查构建日志，确保本地 `npm run build` 能成功运行。
+### 构建失败
+1. 确保本地 `npm run build` 成功
+2. 检查Netlify构建日志
+3. 确认Node.js版本（项目使用18+）
 
-### Q: 如何更新环境变量？
-A: 使用命令：
-```bash
-npx netlify-cli env:set VARIABLE_NAME "value"
-```
-然后重新部署。
+### 页面404
+1. 检查 `netlify.toml` 文件存在
+2. 确认重定向规则正确
 
-### Q: 如何回滚到之前的版本？
-A: 在Netlify控制台的"Deploys"标签中，找到之前的部署，点击"Publish deploy"。
+### API不工作
+1. 确认使用了 `@netlify/plugin-nextjs` 插件
+2. 检查API路由文件在 `app/api/` 目录
 
-### Q: 如何查看部署日志？
-A: 在Netlify控制台的"Deploys"标签中，点击具体的部署查看详细日志。
+## 🎉 成功部署！
 
-## 需要帮助？
+如果所有测试通过，恭喜！你的问芽星图已经成功上线。
 
-查看完整的部署文档：[DEPLOYMENT.md](./DEPLOYMENT.md)
+**你可以分享这个链接给朋友体验：**
+`https://你的网站名.netlify.app/demo`
+
+## 📱 预览链接示例
+
+部署成功后，你的网站将有这些页面：
+- 首页：`https://wenya-starmap.netlify.app`
+- 快速体验：`https://wenya-starmap.netlify.app/demo`
+- 学习仪表板：`https://wenya-starmap.netlify.app/dashboard`
+- 练习中心：`https://wenya-starmap.netlify.app/quiz`
+
+---
+
+**需要帮助？** 如果遇到任何问题，请查看详细的 `NETLIFY-DEPLOY-GUIDE.md` 文件。

@@ -1,0 +1,133 @@
+# 星光殿堂 (Starlight Hall) - 实现计划
+
+## Implementation Plan
+
+- [ ] 1. 创建数据类型和服务层
+  - [ ] 1.1 在 types/index.ts 中添加社区相关类型定义
+    - 添加 Post, Comment, CommunityUser, Friend, Message, Notification 等类型
+    - _Requirements: 1.1-1.7, 2.1-2.6, 3.1-3.5, 4.1-4.6_
+  - [ ] 1.2 创建社区服务 lib/community-service.ts
+    - 实现帖子的 CRUD 操作
+    - 实现点赞、评论、分享、收藏功能
+    - 实现搜索和筛选功能
+    - _Requirements: 1.1-1.7, 2.1-2.6, 3.1-3.5, 4.1-4.6, 5.1-5.5_
+  - [ ]* 1.3 编写属性测试：文件上传验证
+    - **Property 1: File Upload Validation**
+    - **Validates: Requirements 1.2, 1.3, 1.4**
+  - [ ]* 1.4 编写属性测试：URL验证
+    - **Property 2: URL Validation**
+    - **Validates: Requirements 1.5**
+  - [ ] 1.5 创建好友服务 lib/friend-service.ts
+    - 实现好友列表管理
+    - 实现好友请求发送、接受、拒绝
+    - 实现用户搜索
+    - _Requirements: 6.1-6.6_
+  - [ ]* 1.6 编写属性测试：好友关系双向性
+    - **Property 8: Friend Relationship Bidirectionality**
+    - **Property 9: Friend Removal Bidirectionality**
+    - **Validates: Requirements 6.2, 6.5**
+  - [ ] 1.7 创建聊天服务 lib/chat-service.ts
+    - 实现会话管理
+    - 实现消息发送和接收
+    - 实现未读计数
+    - _Requirements: 7.1-7.6, 8.1-8.5_
+  - [ ] 1.8 创建通知服务 lib/notification-service.ts
+    - 实现通知创建和管理
+    - 实现已读状态更新
+    - _Requirements: 10.1-10.5_
+  - [ ]* 1.9 编写属性测试：通知计数准确性
+    - **Property 11: Notification Count Accuracy**
+    - **Validates: Requirements 10.4**
+
+- [ ] 2. Checkpoint - 确保所有测试通过
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 3. 创建社区UI组件
+  - [ ] 3.1 创建帖子卡片组件 components/community/PostCard.tsx
+    - 显示作者信息、内容、媒体、互动按钮
+    - 支持图片画廊、视频播放、文件下载
+    - _Requirements: 2.2, 2.3, 3.3, 4.6, 5.4_
+  - [ ] 3.2 创建发帖编辑器组件 components/community/PostEditor.tsx
+    - 支持文字输入、图片/视频/文件上传
+    - 支持链接添加和预览
+    - 支持分类选择和标签添加
+    - _Requirements: 1.1-1.7, 11.1, 11.2_
+  - [ ]* 3.3 编写属性测试：标签限制
+    - **Property 12: Tag Limit Enforcement**
+    - **Validates: Requirements 11.2**
+  - [ ] 3.4 创建评论区组件 components/community/CommentSection.tsx
+    - 显示评论列表和嵌套回复
+    - 支持添加评论和回复
+    - 支持评论点赞和删除
+    - _Requirements: 4.1-4.6_
+  - [ ]* 3.5 编写属性测试：评论计数一致性
+    - **Property 7: Comment Count Consistency**
+    - **Validates: Requirements 4.1, 4.5, 4.6**
+  - [ ] 3.6 创建社区动态流组件 components/community/CommunityFeed.tsx
+    - 实现无限滚动加载
+    - 实现分类筛选和搜索
+    - _Requirements: 2.1, 2.4, 2.5, 2.6_
+  - [ ]* 3.7 编写属性测试：帖子排序和筛选
+    - **Property 3: Post Chronological Order**
+    - **Property 4: Category Filter Consistency**
+    - **Property 5: Search Result Relevance**
+    - **Validates: Requirements 2.1, 2.5, 2.6**
+
+- [ ] 4. Checkpoint - 确保所有测试通过
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 5. 创建好友和聊天UI组件
+  - [ ] 5.1 创建好友列表组件 components/community/FriendList.tsx
+    - 显示好友列表和在线状态
+    - 支持选择好友开始聊天
+    - 显示AI导师入口
+    - _Requirements: 6.4, 7.1_
+  - [ ] 5.2 创建聊天窗口组件 components/community/ChatWindow.tsx
+    - 显示聊天历史
+    - 支持发送文字、图片、文件
+    - 显示打字指示器
+    - _Requirements: 7.1-7.6_
+  - [ ]* 5.3 编写属性测试：会话排序
+    - **Property 10: Conversation Sort Order**
+    - **Validates: Requirements 7.5**
+  - [ ] 5.4 创建用户资料卡片组件 components/community/UserProfileCard.tsx
+    - 显示用户信息和统计数据
+    - 显示好友状态和操作按钮
+    - _Requirements: 9.1-9.5_
+  - [ ] 5.5 创建用户搜索组件 components/community/UserSearch.tsx
+    - 支持搜索用户
+    - 显示搜索结果和添加好友按钮
+    - _Requirements: 6.6_
+
+- [ ] 6. 创建主页面
+  - [ ] 6.1 创建星光殿堂主页面 app/community/page.tsx
+    - 实现社区/聊天双视图切换
+    - 集成所有组件
+    - 实现顶部导航栏（参考图片设计）
+    - _Requirements: All_
+  - [ ] 6.2 创建通知组件 components/community/NotificationPanel.tsx
+    - 显示通知列表
+    - 支持标记已读
+    - 显示未读徽章
+    - _Requirements: 10.1-10.5_
+  - [ ] 6.3 创建分享弹窗组件 components/community/ShareModal.tsx
+    - 显示分享选项
+    - 支持分享给好友和复制链接
+    - _Requirements: 5.1-5.3_
+
+- [ ] 7. 添加示例数据和完善功能
+  - [ ] 7.1 创建示例数据 lib/community-demo-data.ts
+    - 创建示例帖子、用户、评论数据
+    - 创建示例好友和聊天数据
+  - [ ] 7.2 在首页添加星光殿堂入口
+    - 在主页添加社区功能卡片
+    - 在仪表板添加快捷入口
+  - [ ]* 7.3 编写属性测试：点赞切换
+    - **Property 6: Like Toggle Idempotence**
+    - **Validates: Requirements 3.1, 3.2**
+  - [ ]* 7.4 编写属性测试：标签筛选
+    - **Property 13: Tag Filter Consistency**
+    - **Validates: Requirements 11.4**
+
+- [ ] 8. Final Checkpoint - 确保所有测试通过
+  - Ensure all tests pass, ask the user if questions arise.

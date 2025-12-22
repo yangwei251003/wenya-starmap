@@ -5,9 +5,11 @@ interface CardProps {
   variant?: 'sprout' | 'star' | 'cosmos'
   className?: string
   children: React.ReactNode
+  onClick?: () => void
+  style?: React.CSSProperties
 }
 
-export function Card({ variant = 'cosmos', className, children }: CardProps) {
+export function Card({ variant = 'cosmos', className, children, onClick, style }: CardProps) {
   const variantClasses = {
     sprout: 'sprout-card',
     star: 'star-card',
@@ -15,7 +17,11 @@ export function Card({ variant = 'cosmos', className, children }: CardProps) {
   }
 
   return (
-    <div className={cn(variantClasses[variant], className)}>
+    <div 
+      className={cn(variantClasses[variant], className, onClick && 'cursor-pointer')}
+      onClick={onClick}
+      style={style}
+    >
       {children}
     </div>
   )

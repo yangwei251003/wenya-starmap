@@ -53,13 +53,15 @@ export async function POST(request: NextRequest) {
       targetLevel: level === 'beginner' ? 'intermediate' : 'advanced'
     })
 
-    // 模拟用户数据
+    // 模拟用户数据（包含星币初始值，实际发放在客户端完成）
     const user = {
       id: userId,
       username,
       email,
       level,
+      starCoins: 200, // 新用户初始星币（实际发放在客户端登录后完成）
       learningPath,
+      purchasedCourses: [],
       createdAt: new Date().toISOString()
     }
 
@@ -74,9 +76,11 @@ export async function POST(request: NextRequest) {
           id: user.id,
           username: user.username,
           email: user.email,
-          level: user.level
+          level: user.level,
+          starCoins: user.starCoins,
+          isNewUser: true // 标记为新用户，客户端需要发放注册奖励
         },
-        message: '注册成功！欢迎加入问芽星图！'
+        message: '注册成功！欢迎加入问芽星图！获得200星币新人礼包！'
       }
     })
 

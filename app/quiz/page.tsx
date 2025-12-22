@@ -1,10 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { 
-  Exercise, 
   ExerciseType, 
-  EnglishLevel, 
   Evaluation,
   Answer 
 } from '@/types'
@@ -15,32 +14,35 @@ import {
   AchievementCelebration 
 } from '@/components/exercise'
 import { exerciseService, ExerciseSession, ExerciseResult as ExerciseResultType } from '@/lib/exercise-service'
-import { Button } from '@/components/ui/Button'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { CompletionCelebration } from '@/components/ui/CompletionCelebration'
 
 type ViewState = 'menu' | 'exercise' | 'result'
 
 export default function QuizPage() {
+  const router = useRouter()
   const [viewState, setViewState] = useState<ViewState>('menu')
   const [session, setSession] = useState<ExerciseSession | null>(null)
   const [result, setResult] = useState<ExerciseResultType | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [showAchievements, setShowAchievements] = useState(false)
+  const [showCelebration, setShowCelebration] = useState(false)
+  const [startTime, setStartTime] = useState<number>(0)
 
   // 开始练习
   const handleStartExercise = async (type: ExerciseType) => {
     setIsLoading(true)
+    setStartTime(Date.now())
     try {
-      // 生成练习题
       const exercises = await exerciseService.generateExercises(
         type,
-        'intermediate', // 默认中级，实际应从用户数据获取
+        'intermediate',
         5
       )
 
-      // 创建练习会话
       const newSession: ExerciseSession = {
         id: `session_${Date.now()}`,
-        userId: 'demo_user', // 实际应从认证系统获取
+        userId: 'demo_user',
         exercises,
         answers: [],
         startTime: new Date(),
@@ -69,17 +71,15 @@ export default function QuizPage() {
     }
 
     const currentExercise = session.exercises[session.currentIndex]
-    const startTime = Date.now()
+    const answerStartTime = Date.now()
 
-    // 评估答案
     const evaluation = await exerciseService.evaluateAnswer(
       currentExercise,
       userAnswer
     )
 
-    const timeSpent = (Date.now() - startTime) / 1000
+    const timeSpent = (Date.now() - answerStartTime) / 1000
 
-    // 记录答案
     const answer: Answer = {
       exerciseId: currentExercise.id,
       userAnswer,
@@ -100,13 +100,11 @@ export default function QuizPage() {
     if (!session) return
 
     if (session.currentIndex < session.exercises.length - 1) {
-      // 继续下一题
       setSession({
         ...session,
         currentIndex: session.currentIndex + 1
       })
     } else {
-      // 完成练习
       await handleCompleteExercise()
     }
   }
@@ -120,16 +118,33 @@ export default function QuizPage() {
       endTime: new Date()
     }
 
-    // 提交会话并获取结果
     const exerciseResult = await exerciseService.submitSession(completedSession)
     
     setResult(exerciseResult)
-    setViewState('result')
+    setShowCelebration(true)
 
-    // 如果有新成就，显示庆祝动画
     if (exerciseResult.achievements.length > 0) {
-      setShowAchievements(true)
+      setTimeout(() => setShowAchievements(true), 2000)
     }
+  }
+
+  // 处理庆祝动画关闭
+  const handleCelebrationClose = () => {
+    setShowCelebration(false)
+    setViewState('result')
+  }
+
+  // 继续学习
+  const handleContinue = () => {
+    setShowCelebration(false)
+    setSession(null)
+    setResult(null)
+    setViewState('menu')
+  }
+
+  // 返回主页
+  const handleGoHome = () => {
+    router.push('/dashboard')
   }
 
   // 重新开始
@@ -146,18 +161,31 @@ export default function QuizPage() {
     setViewState('menu')
   }
 
-  return (
-    <div className="min-h-screen p-6">
-      <div className="max-w-4xl mx-auto">
-        {/* 标题 */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-star-400 mb-2">互动练习</h1>
-          <p className="text-cosmos-300">听说读写全方位练习</p>
-        </div>
+  // 计算用时
+  const getTimeSpent = () => {
+    if (!startTime) return 0
+    return Math.floor((Date.now() - startTime) / 1000)
+  }
 
+  // 计算正确数
+  const getCorrectCount = () => {
+    if (!session) return 0
+    return session.answers.filter(a => a.isCorrect).length
+  }
+
+  return (
+    <div className="min-h-screen">
+      <PageHeader 
+        title="互动练习" 
+        subtitle="听说读写全方位练习"
+        titleColor="star"
+        backUrl="/dashboard"
+      />
+
+      <div className="max-w-4xl mx-auto px-4 pb-8">
         {/* 菜单视图 */}
         {viewState === 'menu' && (
-          <div>
+          <div className="animate-fade-in-up">
             {isLoading ? (
               <div className="text-center py-12">
                 <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-star-400 border-t-transparent"></div>
@@ -171,23 +199,41 @@ export default function QuizPage() {
 
         {/* 练习视图 */}
         {viewState === 'exercise' && session && (
-          <ExerciseCard
-            exercise={session.exercises[session.currentIndex]}
-            onSubmit={handleSubmitAnswer}
-            onNext={handleNext}
-            currentIndex={session.currentIndex}
-            totalExercises={session.exercises.length}
-          />
+          <div className="animate-fade-in-up">
+            <ExerciseCard
+              exercise={session.exercises[session.currentIndex]}
+              onSubmit={handleSubmitAnswer}
+              onNext={handleNext}
+              currentIndex={session.currentIndex}
+              totalExercises={session.exercises.length}
+            />
+          </div>
         )}
 
         {/* 结果视图 */}
         {viewState === 'result' && result && (
-          <ExerciseResult
-            result={result}
-            onRestart={handleRestart}
-            onBackToMenu={handleBackToMenu}
-          />
+          <div className="animate-fade-in-up">
+            <ExerciseResult
+              result={result}
+              onRestart={handleRestart}
+              onBackToMenu={handleBackToMenu}
+            />
+          </div>
         )}
+
+        {/* 完成庆祝动画 */}
+        <CompletionCelebration
+          isVisible={showCelebration}
+          onClose={handleCelebrationClose}
+          onContinue={handleContinue}
+          onGoHome={handleGoHome}
+          title="练习完成！"
+          subtitle="你完成了本次练习"
+          correctCount={getCorrectCount()}
+          totalCount={session?.exercises.length || 0}
+          timeSpent={getTimeSpent()}
+          xpEarned={result?.score || 50}
+        />
 
         {/* 成就庆祝 */}
         {showAchievements && result && (
