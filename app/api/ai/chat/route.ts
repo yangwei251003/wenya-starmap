@@ -173,11 +173,38 @@ function getSimulatedResponse(message: string, level: string): string {
   }
 
   // 默认响应
-  return `That's interesting! 这很有趣！Let me help you with that. 让我来帮助你。
+  const lowerMessage = message.toLowerCase()
+  
+  // 根据消息内容提供更智能的响应
+  if (lowerMessage.includes('想') || lowerMessage.includes('think')) {
+    return `That's interesting! 这很有趣！Let me help you with that. 让我来帮助你。
 
-In English, we might say: "${message}"
+In English, we might say: "想" can be translated as "want", "think", or "miss" depending on the context.
 
-这句话的意思是...（这是一个模拟响应，请配置GLM_API_KEY以获得真实的AI回复）
+For example:
+- 我想学英语 = I want to learn English
+- 我想你 = I miss you
+- 我想是的 = I think so
 
-Would you like to practice more? 想要继续练习吗？`
+Would you like to practice more? 想要继续练习吗？
+
+💡 提示：这是演示模式。如需完整AI对话功能，请联系管理员配置API密钥。`
+  }
+  
+  return `Great question! 很好的问题！
+
+You said: "${message}"
+
+Let me help you with that. 让我来帮助你。This is a practice conversation to help you learn English. 这是一个帮助你学习英语的练习对话。
+
+Here are some tips for learning English:
+学习英语的一些建议：
+- Practice every day 每天练习
+- Don't be afraid to make mistakes 不要害怕犯错
+- Listen to English content 多听英语内容
+- Speak as much as possible 尽可能多说
+
+Would you like to continue practicing? 想要继续练习吗？
+
+💡 提示：当前为演示模式。完整AI功能需要配置API密钥。`
 }

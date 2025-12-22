@@ -48,3 +48,8 @@ Thumbs.db
 
 # Local Netlify folder
 .netlify
+
+# Archives - Large files that block git push
+*.zip
+*.tar.gz
+*.rar
