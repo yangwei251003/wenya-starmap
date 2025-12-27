@@ -1,9 +1,30 @@
 'use client'
 
+import React, { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Sprout, Star, BookOpen, Users, Rocket, Sparkles, Zap, ShoppingCart, Coins, Gift, MessageCircle } from 'lucide-react'
 
 export default function HomePage() {
+  const router = useRouter()
+
+  // 检测移动端并重定向
+  useEffect(() => {
+    const checkMobile = () => {
+      const userAgent = navigator.userAgent.toLowerCase()
+      const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/.test(userAgent)
+      const isSmallScreen = window.innerWidth < 768
+      
+      if (isMobileDevice || isSmallScreen) {
+        router.push('/mobile')
+      }
+    }
+
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [router])
+
   return (
     <div className="min-h-screen flex flex-col">
       {/* 导航栏 */}

@@ -7,6 +7,12 @@ module.exports = {
   ],
   theme: {
     extend: {
+      screens: {
+        'xs': '475px',
+        'mobile': { 'max': '767px' },
+        'tablet': { 'min': '768px', 'max': '1023px' },
+        'desktop': { 'min': '1024px' },
+      },
       colors: {
         // 嫩芽成长主题色彩
         sprout: {
@@ -48,10 +54,28 @@ module.exports = {
           900: '#0f172a',
         }
       },
+      spacing: {
+        'safe-top': 'env(safe-area-inset-top)',
+        'safe-bottom': 'env(safe-area-inset-bottom)',
+        'safe-left': 'env(safe-area-inset-left)',
+        'safe-right': 'env(safe-area-inset-right)',
+      },
+      minHeight: {
+        'touch': '44px',
+        'mobile-screen': '100vh',
+        'mobile-content': 'calc(100vh - 64px - 80px)', // 减去顶部和底部导航
+      },
+      maxWidth: {
+        'mobile': '100vw',
+        'mobile-content': 'calc(100vw - 2rem)',
+      },
       animation: {
         'sprout-grow': 'sproutGrow 2s ease-out',
         'star-twinkle': 'starTwinkle 3s ease-in-out infinite',
         'float': 'float 6s ease-in-out infinite',
+        'mobile-slide-up': 'mobileSlideUp 0.3s ease-out',
+        'mobile-slide-down': 'mobileSlideDown 0.3s ease-out',
+        'mobile-fade-in': 'mobileFadeIn 0.3s ease-out',
       },
       keyframes: {
         sproutGrow: {
@@ -66,6 +90,18 @@ module.exports = {
         float: {
           '0%, 100%': { transform: 'translateY(0px)' },
           '50%': { transform: 'translateY(-10px)' },
+        },
+        mobileSlideUp: {
+          '0%': { transform: 'translateY(100%)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+        mobileSlideDown: {
+          '0%': { transform: 'translateY(-100%)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+        mobileFadeIn: {
+          '0%': { opacity: '0', transform: 'scale(0.95)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
         }
       }
     },

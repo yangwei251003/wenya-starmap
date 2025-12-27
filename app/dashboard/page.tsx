@@ -40,6 +40,26 @@ export default function DashboardPage() {
   })
   const [showPlanConfig, setShowPlanConfig] = useState(false)
   const [studyStats, setStudyStats] = useState({ streak: 0, todayCompleted: 0, totalMastered: 0 })
+  const [isMobile, setIsMobile] = useState(false)
+
+  // 检测移动端
+  useEffect(() => {
+    const checkMobile = () => {
+      const userAgent = navigator.userAgent.toLowerCase()
+      const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/.test(userAgent)
+      const isSmallScreen = window.innerWidth < 768
+      
+      if (isMobileDevice || isSmallScreen) {
+        setIsMobile(true)
+        // 如果是移动端，重定向到移动端优化页面
+        router.push('/mobile-dashboard')
+      }
+    }
+
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [router])
 
   useEffect(() => {
     // 获取用户数据
