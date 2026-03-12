@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useDashboard } from '@/hooks/useDashboard'
 import { ProgressCard } from '@/components/dashboard/ProgressCard'
@@ -14,15 +14,45 @@ import StudyGoals from '@/components/dashboard/StudyGoals'
 import DailyChallenge from '@/components/dashboard/DailyChallenge'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
-import { User, Star, Sparkles, Rocket, BookOpen, Target, Trophy, LogOut, Sprout, Coins, Gift, CheckCircle, ShoppingCart, Crown, Users, Brain, Flame, Settings, Play, BarChart3 } from 'lucide-react'
+import { User, Star, Sparkles, Rocket, BookOpen, Target, Trophy, LogOut, Sprout, Coins, Gift, CheckCircle, ShoppingCart, Crown, Users, Brain, Flame, Settings, Play, BarChart3, Bot, Megaphone, Compass, ClipboardCheck } from 'lucide-react'
 import Link from 'next/link'
 import { starCoinService } from '@/lib/star-coin-service'
+import { smartLearningService } from '@/lib/smart-learning-service'
+import { AIDiagnosis } from '@/types'
+
+type DashboardTab = 'overview' | 'ai' | 'growth' | 'ecosystem'
+type EcosystemSectionKey = 'loop' | 'community' | 'business'
+
+const isValidTab = (tab: string | null): tab is DashboardTab => {
+  return tab === 'overview' || tab === 'ai' || tab === 'growth' || tab === 'ecosystem'
+}
+
+const ECOSYSTEM_DEMO_ORDER: EcosystemSectionKey[] = ['loop', 'community', 'business']
+
+const ECOSYSTEM_JUDGE_MAPPING: Record<EcosystemSectionKey, { title: string; focus: string; judge: string }> = {
+  loop: {
+    title: '学习闭环入口',
+    focus: '诊断 -> 学习 -> 练习 -> AI反馈',
+    judge: '用户体验设计 + 技术实现'
+  },
+  community: {
+    title: '社区与内容生态',
+    focus: '内容互动 + 社区活跃 + 评审展示',
+    judge: '创意与原创性 + 上线运营能力'
+  },
+  business: {
+    title: '商业转化与运营',
+    focus: '课程转化 + 充值体系 + 增长复盘',
+    judge: '商业价值与可行性'
+  }
+}
 
 export default function DashboardPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const isDemo = searchParams.get('demo') === 'true'
   const isWelcome = searchParams.get('welcome') === 'true'
+  const tabQuery = searchParams.get('tab')
   
   const { learningPath, achievements, stats, isLoading, error, refreshData } = useDashboard()
   const [showAnimation, setShowAnimation] = useState(isWelcome)
@@ -40,7 +70,17 @@ export default function DashboardPage() {
   })
   const [showPlanConfig, setShowPlanConfig] = useState(false)
   const [studyStats, setStudyStats] = useState({ streak: 0, todayCompleted: 0, totalMastered: 0 })
-  const [isMobile, setIsMobile] = useState(false)
+  const [activeTab, setActiveTab] = useState<DashboardTab>(isValidTab(tabQuery) ? tabQuery : 'overview')
+  const [aiDiagnosis, setAiDiagnosis] = useState<AIDiagnosis | null>(null)
+  const [aiDiagnosisLoading, setAiDiagnosisLoading] = useState(false)
+  const [activeEcosystemGuide, setActiveEcosystemGuide] = useState<EcosystemSectionKey>('loop')
+  const [isEcosystemDemoMode, setIsEcosystemDemoMode] = useState(false)
+  const [ecosystemDemoStep, setEcosystemDemoStep] = useState(0)
+  const ecosystemSectionRefs = useRef<Record<EcosystemSectionKey, HTMLDivElement | null>>({
+    loop: null,
+    community: null,
+    business: null
+  })
 
   // 检测移动端
   useEffect(() => {
@@ -50,7 +90,6 @@ export default function DashboardPage() {
       const isSmallScreen = window.innerWidth < 768
       
       if (isMobileDevice || isSmallScreen) {
-        setIsMobile(true)
         // 如果是移动端，重定向到移动端优化页面
         router.push('/mobile-dashboard')
       }
@@ -122,6 +161,39 @@ export default function DashboardPage() {
     }
   }, [])
 
+  useEffect(() => {
+    if (isValidTab(tabQuery) && tabQuery !== activeTab) {
+      setActiveTab(tabQuery)
+    }
+  }, [tabQuery, activeTab])
+
+  useEffect(() => {
+    if (activeTab !== 'ecosystem' && isEcosystemDemoMode) {
+      setIsEcosystemDemoMode(false)
+    }
+  }, [activeTab, isEcosystemDemoMode])
+
+  useEffect(() => {
+    if (!isEcosystemDemoMode || activeTab !== 'ecosystem') return
+
+    let step = 0
+    focusEcosystemSection(ECOSYSTEM_DEMO_ORDER[step])
+    setEcosystemDemoStep(step)
+
+    const timer = setInterval(() => {
+      step += 1
+      if (step >= ECOSYSTEM_DEMO_ORDER.length) {
+        setIsEcosystemDemoMode(false)
+        clearInterval(timer)
+        return
+      }
+      focusEcosystemSection(ECOSYSTEM_DEMO_ORDER[step])
+      setEcosystemDemoStep(step)
+    }, 2200)
+
+    return () => clearInterval(timer)
+  }, [isEcosystemDemoMode, activeTab])
+
   // 签到
   const handleCheckin = () => {
     if (!userData) return
@@ -146,6 +218,13 @@ export default function DashboardPage() {
     router.push('/')
   }
 
+  const handleTabChange = (tab: DashboardTab) => {
+    setActiveTab(tab)
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('tab', tab)
+    router.replace(`/dashboard?${params.toString()}`)
+  }
+
   // 保存学习计划
   const savePlan = () => {
     if (userData) {
@@ -161,6 +240,219 @@ export default function DashboardPage() {
       router.push('/study')
     }
   }
+
+  const handleGenerateDiagnosis = async () => {
+    if (!userData) return
+    setAiDiagnosisLoading(true)
+    try {
+      const learningData = smartLearningService.getUserLearningData(userData.id)
+      const response = await fetch('/api/ai/diagnosis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: userData.id,
+          level: userData.level,
+          learningData,
+          studyStats: {
+            streak: studyStats.streak,
+            todayCompleted: studyStats.todayCompleted,
+            accuracy: Math.round((studyStats.todayCompleted > 0 ? 85 : 0)),
+            totalMastered: studyStats.totalMastered
+          }
+        })
+      })
+      const data = await response.json()
+      if (data?.data) setAiDiagnosis(data.data)
+    } catch (error) {
+      console.error('AI诊断生成失败:', error)
+    } finally {
+      setAiDiagnosisLoading(false)
+    }
+  }
+
+  const focusEcosystemSection = (key: EcosystemSectionKey, useSmoothScroll: boolean = true) => {
+    setActiveEcosystemGuide(key)
+    const sectionEl = ecosystemSectionRefs.current[key]
+    if (sectionEl) {
+      sectionEl.scrollIntoView({ behavior: useSmoothScroll ? 'smooth' : 'auto', block: 'start' })
+    }
+  }
+
+  const handleStartEcosystemDemo = () => {
+    if (activeTab !== 'ecosystem') {
+      handleTabChange('ecosystem')
+    }
+    setIsEcosystemDemoMode(true)
+    setEcosystemDemoStep(0)
+    focusEcosystemSection(ECOSYSTEM_DEMO_ORDER[0], false)
+  }
+
+  const handleStopEcosystemDemo = () => {
+    setIsEcosystemDemoMode(false)
+  }
+
+  const ecosystemSections = [
+    {
+      key: 'loop' as EcosystemSectionKey,
+      title: '学习闭环入口',
+      description: '评审演示建议优先从这里开始：诊断 -> 学习 -> 练习 -> AI反馈。',
+      items: [
+        {
+          href: '/study-fsrs',
+          title: '智能学习',
+          description: 'FSRS 记忆调度',
+          badge: '核心路径',
+          icon: Brain,
+          iconWrapClass: 'bg-sprout-400/20',
+          iconClass: 'text-sprout-300',
+          cardClass: 'hover:border-sprout-300/50',
+          badgeClass: 'bg-sprout-400/20 text-sprout-300'
+        },
+        {
+          href: '/quiz',
+          title: '练习中心',
+          description: '闯关与错题解析',
+          badge: '能力提升',
+          icon: Trophy,
+          iconWrapClass: 'bg-green-400/20',
+          iconClass: 'text-green-300',
+          cardClass: 'hover:border-green-300/50',
+          badgeClass: 'bg-green-400/20 text-green-300'
+        },
+        {
+          href: '/chat',
+          title: 'AI 对话',
+          description: '实时双语陪练',
+          badge: '高互动',
+          icon: Rocket,
+          iconWrapClass: 'bg-orange-400/20',
+          iconClass: 'text-orange-300',
+          cardClass: 'hover:border-orange-300/50',
+          badgeClass: 'bg-orange-400/20 text-orange-300'
+        },
+        {
+          href: '/ai-writing',
+          title: 'AI 写作工坊',
+          description: '评分 + 纠错 + 改写',
+          badge: '冲分功能',
+          icon: ClipboardCheck,
+          iconWrapClass: 'bg-purple-400/20',
+          iconClass: 'text-purple-300',
+          cardClass: 'hover:border-purple-300/50',
+          badgeClass: 'bg-purple-400/20 text-purple-300'
+        },
+        {
+          href: '/growth-starmap',
+          title: '成长星图',
+          description: '可视化学习复盘',
+          badge: '成果展示',
+          icon: Star,
+          iconWrapClass: 'bg-star-400/20',
+          iconClass: 'text-star-300',
+          cardClass: 'hover:border-star-300/50',
+          badgeClass: 'bg-star-400/20 text-star-300'
+        }
+      ]
+    },
+    {
+      key: 'community' as EcosystemSectionKey,
+      title: '社区与内容生态',
+      description: '围绕课程内容和用户互动构建留存，提升站内活跃度。',
+      items: [
+        {
+          href: '/lesson',
+          title: '免费课程',
+          description: '系统化入门内容',
+          badge: '拉新入口',
+          icon: Target,
+          iconWrapClass: 'bg-blue-400/20',
+          iconClass: 'text-blue-300',
+          cardClass: 'hover:border-blue-300/50',
+          badgeClass: 'bg-blue-400/20 text-blue-300'
+        },
+        {
+          href: '/my-courses',
+          title: '我的课程',
+          description: '课程资产管理',
+          badge: '留存锚点',
+          icon: BookOpen,
+          iconWrapClass: 'bg-cyan-400/20',
+          iconClass: 'text-cyan-300',
+          cardClass: 'hover:border-cyan-300/50',
+          badgeClass: 'bg-cyan-400/20 text-cyan-300'
+        },
+        {
+          href: '/community',
+          title: '星光殿堂',
+          description: '打卡与讨论互动',
+          badge: '社交裂变',
+          icon: Users,
+          iconWrapClass: 'bg-pink-400/20',
+          iconClass: 'text-pink-300',
+          cardClass: 'hover:border-pink-300/50',
+          badgeClass: 'bg-pink-400/20 text-pink-300'
+        },
+        {
+          href: '/competition',
+          title: '评审中心',
+          description: '评分映射与脚本',
+          badge: '答辩专用',
+          icon: Compass,
+          iconWrapClass: 'bg-indigo-400/20',
+          iconClass: 'text-indigo-300',
+          cardClass: 'hover:border-indigo-300/50',
+          badgeClass: 'bg-indigo-400/20 text-indigo-300'
+        }
+      ]
+    },
+    {
+      key: 'business' as EcosystemSectionKey,
+      title: '商业转化与运营',
+      description: '面向商业价值与可行性评分，突出可持续增长闭环。',
+      items: [
+        {
+          href: '/store',
+          title: '课程商店',
+          description: '课程包与服务组合',
+          badge: '核心变现',
+          icon: ShoppingCart,
+          iconWrapClass: 'bg-star-400/20',
+          iconClass: 'text-star-300',
+          cardClass: 'hover:border-star-300/50',
+          badgeClass: 'bg-star-400/20 text-star-300'
+        },
+        {
+          href: '/recharge',
+          title: '充值中心',
+          description: '星币与权益获取',
+          badge: '支付转化',
+          icon: Coins,
+          iconWrapClass: 'bg-yellow-400/20',
+          iconClass: 'text-yellow-300',
+          cardClass: 'hover:border-yellow-300/50',
+          badgeClass: 'bg-yellow-400/20 text-yellow-300'
+        },
+        {
+          href: '/dashboard?tab=growth',
+          title: '增长运营',
+          description: '目标、挑战、榜单',
+          badge: '活跃拉升',
+          icon: Flame,
+          iconWrapClass: 'bg-red-400/20',
+          iconClass: 'text-red-300',
+          cardClass: 'hover:border-red-300/50',
+          badgeClass: 'bg-red-400/20 text-red-300'
+        }
+      ]
+    }
+  ]
+
+  const ecosystemMetrics = [
+    { label: '7日留存', value: '35%+', color: 'text-sprout-400' },
+    { label: 'AI触达率', value: '60%+', color: 'text-star-400' },
+    { label: '日均学习时长', value: '18 min', color: 'text-cyan-400' },
+    { label: '课程转化率', value: '8-12%', color: 'text-purple-400' }
+  ]
 
   if (isLoading) {
     return (
@@ -295,20 +587,72 @@ export default function DashboardPage() {
           </Card>
         )}
 
-        {/* 页面标题 */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-sprout-400 to-star-400 bg-clip-text text-transparent mb-2">
-            学习仪表板
-          </h1>
-          <p className="text-cosmos-300 flex items-center justify-center gap-2">
-            <Sparkles className="w-4 h-4 text-star-400" />
-            你的成长星图
-            <Sparkles className="w-4 h-4 text-star-400" />
-          </p>
-        </div>
+        {/* 分区导航 */}
+        <Card className="mb-8 p-2 bg-cosmos-900/50 border-cosmos-700/50">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <button
+              onClick={() => handleTabChange('overview')}
+              className={`px-4 py-3 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                activeTab === 'overview'
+                  ? 'bg-gradient-to-r from-sprout-500/30 to-star-500/30 border border-sprout-400/50 text-white'
+                  : 'bg-cosmos-800/50 border border-cosmos-700/40 text-cosmos-300 hover:text-white'
+              }`}
+            >
+              <BookOpen className="w-4 h-4" />
+              学习总览
+            </button>
+            <button
+              onClick={() => handleTabChange('ai')}
+              className={`px-4 py-3 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                activeTab === 'ai'
+                  ? 'bg-gradient-to-r from-sprout-500/30 to-star-500/30 border border-sprout-400/50 text-white'
+                  : 'bg-cosmos-800/50 border border-cosmos-700/40 text-cosmos-300 hover:text-white'
+              }`}
+            >
+              <Bot className="w-4 h-4" />
+              AI中心
+            </button>
+            <button
+              onClick={() => handleTabChange('growth')}
+              className={`px-4 py-3 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                activeTab === 'growth'
+                  ? 'bg-gradient-to-r from-sprout-500/30 to-star-500/30 border border-sprout-400/50 text-white'
+                  : 'bg-cosmos-800/50 border border-cosmos-700/40 text-cosmos-300 hover:text-white'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              成长运营
+            </button>
+            <button
+              onClick={() => handleTabChange('ecosystem')}
+              className={`px-4 py-3 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                activeTab === 'ecosystem'
+                  ? 'bg-gradient-to-r from-sprout-500/30 to-star-500/30 border border-sprout-400/50 text-white'
+                  : 'bg-cosmos-800/50 border border-cosmos-700/40 text-cosmos-300 hover:text-white'
+              }`}
+            >
+              <Megaphone className="w-4 h-4" />
+              生态运营
+            </button>
+          </div>
+        </Card>
 
-        {/* 主要内容区域 */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        {activeTab === 'overview' && (
+          <>
+            {/* 页面标题 */}
+            <div className="text-center mb-8">
+              <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-sprout-400 to-star-400 bg-clip-text text-transparent mb-2">
+                学习仪表板
+              </h1>
+              <p className="text-cosmos-300 flex items-center justify-center gap-2">
+                <Sparkles className="w-4 h-4 text-star-400" />
+                你的成长星图
+                <Sparkles className="w-4 h-4 text-star-400" />
+              </p>
+            </div>
+
+            {/* 主要内容区域 */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           {/* 左侧列 - 进度和统计 */}
           <div className="lg:col-span-1 space-y-6">
             {learningPath && (
@@ -528,153 +872,297 @@ export default function DashboardPage() {
               />
             )}
           </div>
-        </div>
+            </div>
+          </>
+        )}
 
-        {/* 新增模块区域 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          {/* AI 智能助手 */}
-          <div>
-            <AIAssistant 
-              userId={userData?.id || 'demo'} 
-              studyStats={{
-                streak: studyStats.streak,
-                todayCompleted: studyStats.todayCompleted,
-                accuracy: Math.round((studyStats.todayCompleted > 0 ? 85 : 0)), // 模拟准确率
-                totalMastered: studyStats.totalMastered
-              }}
-            />
+        {activeTab === 'ai' && (
+          <div className="space-y-6 mb-6">
+            <Card className="p-6 bg-gradient-to-r from-purple-500/15 to-blue-500/15 border-purple-400/30">
+              <div className="flex flex-col md:flex-row md:items-center gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-purple-500/20 flex items-center justify-center">
+                    <Brain className="w-6 h-6 text-purple-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-white font-semibold text-lg">AI 学习诊断报告</h3>
+                    <p className="text-cosmos-300 text-sm">一键生成优势、薄弱点、7天计划</p>
+                  </div>
+                </div>
+                <div className="md:ml-auto">
+                  <Button variant="star" onClick={handleGenerateDiagnosis} disabled={aiDiagnosisLoading}>
+                    {aiDiagnosisLoading ? '生成中...' : '生成AI报告'}
+                  </Button>
+                </div>
+              </div>
+
+              {aiDiagnosis && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                  <div className="bg-cosmos-800/40 rounded-lg p-4">
+                    <h4 className="text-cosmos-200 font-medium mb-2">优势</h4>
+                    <ul className="text-cosmos-300 text-sm space-y-1">{aiDiagnosis.strengths.map((item, idx) => <li key={idx}>• {item}</li>)}</ul>
+                  </div>
+                  <div className="bg-cosmos-800/40 rounded-lg p-4">
+                    <h4 className="text-cosmos-200 font-medium mb-2">薄弱点</h4>
+                    <ul className="text-cosmos-300 text-sm space-y-1">{aiDiagnosis.weaknesses.map((item, idx) => <li key={idx}>• {item}</li>)}</ul>
+                  </div>
+                  <div className="bg-cosmos-800/40 rounded-lg p-4">
+                    <h4 className="text-cosmos-200 font-medium mb-2">改进建议</h4>
+                    <ul className="text-cosmos-300 text-sm space-y-1">{aiDiagnosis.recommendations.map((item, idx) => <li key={idx}>• {item}</li>)}</ul>
+                  </div>
+                  <div className="bg-cosmos-800/40 rounded-lg p-4">
+                    <h4 className="text-cosmos-200 font-medium mb-2">7天计划</h4>
+                    <ul className="text-cosmos-300 text-sm space-y-1">{aiDiagnosis.weekPlan.map((item, idx) => <li key={idx}>• {item}</li>)}</ul>
+                  </div>
+                </div>
+              )}
+            </Card>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <AIAssistant
+                userId={userData?.id || 'demo'}
+                diagnosis={aiDiagnosis}
+                diagnosisLoading={aiDiagnosisLoading}
+                onGenerateDiagnosis={handleGenerateDiagnosis}
+                studyStats={{
+                  streak: studyStats.streak,
+                  todayCompleted: studyStats.todayCompleted,
+                  accuracy: Math.round((studyStats.todayCompleted > 0 ? 85 : 0)),
+                  totalMastered: studyStats.totalMastered
+                }}
+              />
+              <Card className="p-6">
+                <h4 className="text-white text-lg font-semibold mb-4">AI 功能入口</h4>
+                <div className="space-y-3">
+                  <Link href="/chat" className="block p-3 rounded-lg bg-cosmos-800/60 hover:bg-cosmos-700/70 border border-cosmos-700/40 transition-all">
+                    <div className="flex items-center gap-3">
+                      <Rocket className="w-5 h-5 text-star-400" />
+                      <div>
+                        <p className="text-white text-sm font-medium">AI 对话陪练</p>
+                        <p className="text-cosmos-400 text-xs">实时双语辅导</p>
+                      </div>
+                    </div>
+                  </Link>
+                  <Link href="/ai-writing" className="block p-3 rounded-lg bg-cosmos-800/60 hover:bg-cosmos-700/70 border border-cosmos-700/40 transition-all">
+                    <div className="flex items-center gap-3">
+                      <ClipboardCheck className="w-5 h-5 text-star-400" />
+                      <div>
+                        <p className="text-white text-sm font-medium">AI 写作工坊</p>
+                        <p className="text-cosmos-400 text-xs">评分 + 纠错 + 改写</p>
+                      </div>
+                    </div>
+                  </Link>
+                  <Link href="/competition" className="block p-3 rounded-lg bg-cosmos-800/60 hover:bg-cosmos-700/70 border border-cosmos-700/40 transition-all">
+                    <div className="flex items-center gap-3">
+                      <Compass className="w-5 h-5 text-star-400" />
+                      <div>
+                        <p className="text-white text-sm font-medium">评审中心</p>
+                        <p className="text-cosmos-400 text-xs">评分标准映射与演示脚本</p>
+                      </div>
+                    </div>
+                  </Link>
+                </div>
+              </Card>
+            </div>
           </div>
+        )}
 
-          {/* 学习排行榜 */}
-          <div>
-            <LeaderBoard 
-              userId={userData?.id || 'demo'}
-              currentUserStats={{
-                streak: studyStats.streak,
-                todayCompleted: studyStats.todayCompleted,
-                accuracy: Math.round((studyStats.todayCompleted > 0 ? 85 : 0)), // 模拟准确率
-                totalMastered: studyStats.totalMastered
-              }}
-            />
+        {activeTab === 'growth' && (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              <div>
+                <AIAssistant
+                  userId={userData?.id || 'demo'}
+                  diagnosis={aiDiagnosis}
+                  diagnosisLoading={aiDiagnosisLoading}
+                  onGenerateDiagnosis={handleGenerateDiagnosis}
+                  studyStats={{
+                    streak: studyStats.streak,
+                    todayCompleted: studyStats.todayCompleted,
+                    accuracy: Math.round((studyStats.todayCompleted > 0 ? 85 : 0)),
+                    totalMastered: studyStats.totalMastered
+                  }}
+                />
+              </div>
+
+              <div>
+                <LeaderBoard
+                  userId={userData?.id || 'demo'}
+                  currentUserStats={{
+                    streak: studyStats.streak,
+                    todayCompleted: studyStats.todayCompleted,
+                    accuracy: Math.round((studyStats.todayCompleted > 0 ? 85 : 0)),
+                    totalMastered: studyStats.totalMastered
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              <div>
+                <StudyGoals
+                  userId={userData?.id || 'demo'}
+                  studyStats={{
+                    streak: studyStats.streak,
+                    todayCompleted: studyStats.todayCompleted,
+                    accuracy: Math.round((studyStats.todayCompleted > 0 ? 85 : 0)),
+                    totalMastered: studyStats.totalMastered
+                  }}
+                />
+              </div>
+
+              <div>
+                <DailyChallenge
+                  userId={userData?.id || 'demo'}
+                  studyStats={{
+                    streak: studyStats.streak,
+                    todayCompleted: studyStats.todayCompleted,
+                    accuracy: Math.round((studyStats.todayCompleted > 0 ? 85 : 0)),
+                    totalMastered: studyStats.totalMastered
+                  }}
+                />
+              </div>
+            </div>
+          </>
+        )}
+
+        {activeTab === 'ecosystem' && (
+          <div className="space-y-6 mb-6">
+            <Card className="p-6 bg-gradient-to-r from-star-500/15 via-purple-500/10 to-cyan-500/10 border-star-400/35">
+              <div className="flex flex-col lg:flex-row lg:items-center gap-4 mb-4">
+                <div className="flex-1">
+                  <h3 className="text-white text-2xl font-semibold mb-2">生态运营工作台</h3>
+                  <p className="text-cosmos-200">
+                    拆分为「学习闭环、社区内容、商业转化」三层结构，降低认知负担并直连赛事评分维度。
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="star"
+                    onClick={isEcosystemDemoMode ? handleStopEcosystemDemo : handleStartEcosystemDemo}
+                    className="text-sm"
+                  >
+                    {isEcosystemDemoMode ? '停止演示模式' : '一键演示模式'}
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-2 min-w-[260px]">
+                  <div className="rounded-lg bg-cosmos-800/60 border border-cosmos-700/50 px-3 py-2 text-xs text-cosmos-300">评审命中：商业价值</div>
+                  <div className="rounded-lg bg-cosmos-800/60 border border-cosmos-700/50 px-3 py-2 text-xs text-cosmos-300">评审命中：上线运营</div>
+                  <div className="rounded-lg bg-cosmos-800/60 border border-cosmos-700/50 px-3 py-2 text-xs text-cosmos-300">当前星币：<span className="text-star-300 font-semibold">{starCoins}</span></div>
+                  <div className="rounded-lg bg-cosmos-800/60 border border-cosmos-700/50 px-3 py-2 text-xs text-cosmos-300">演示路径：先闭环后转化</div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2 mb-4">
+                {ECOSYSTEM_DEMO_ORDER.map((key, index) => (
+                  <button
+                    key={key}
+                    onClick={() => focusEcosystemSection(key)}
+                    className={`px-3 py-2 rounded-lg text-xs border transition-all ${
+                      activeEcosystemGuide === key
+                        ? 'bg-star-400/20 border-star-300/60 text-star-200'
+                        : 'bg-cosmos-800/50 border-cosmos-700/50 text-cosmos-300 hover:text-white'
+                    }`}
+                  >
+                    {index + 1}. {ECOSYSTEM_JUDGE_MAPPING[key].title}
+                  </button>
+                ))}
+              </div>
+
+              <div className="rounded-lg bg-cosmos-900/60 border border-cosmos-700/50 px-4 py-3">
+                <p className="text-xs text-cosmos-300">
+                  {isEcosystemDemoMode ? '演示进行中：' : '当前引导：'}
+                  <span className="text-star-300 font-semibold ml-1">
+                    {ECOSYSTEM_JUDGE_MAPPING[activeEcosystemGuide].title}
+                  </span>
+                  {isEcosystemDemoMode && (
+                    <span className="ml-2 text-cosmos-400">
+                      （步骤 {ecosystemDemoStep + 1}/{ECOSYSTEM_DEMO_ORDER.length}）
+                    </span>
+                  )}
+                </p>
+                <p className="text-xs text-cosmos-400 mt-1">
+                  核心路径：{ECOSYSTEM_JUDGE_MAPPING[activeEcosystemGuide].focus} ｜ 对应评分：{ECOSYSTEM_JUDGE_MAPPING[activeEcosystemGuide].judge}
+                </p>
+              </div>
+            </Card>
+
+            {ecosystemSections.map((section) => (
+              <div
+                key={section.title}
+                ref={(el) => {
+                  ecosystemSectionRefs.current[section.key] = el
+                }}
+                className={`scroll-mt-28 transition-all duration-500 ${
+                  activeEcosystemGuide === section.key
+                    ? 'rounded-2xl ring-2 ring-star-300/45 shadow-[0_0_24px_rgba(251,191,36,0.2)]'
+                    : ''
+                }`}
+              >
+                <Card className={`p-6 bg-cosmos-900/55 border-cosmos-700/45 transition-all duration-500 ${
+                  activeEcosystemGuide === section.key ? 'border-star-300/60 bg-star-500/5' : ''
+                }`}>
+                <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-2 mb-4">
+                  <div>
+                    <h4 className="text-white text-lg font-semibold flex items-center gap-2">
+                      {section.title}
+                      {activeEcosystemGuide === section.key && (
+                        <span className="text-[11px] px-2 py-1 rounded-full bg-star-400/20 text-star-300 animate-pulse">
+                          当前高亮
+                        </span>
+                      )}
+                    </h4>
+                    <p className="text-cosmos-300 text-sm mt-1">{section.description}</p>
+                  </div>
+                  <span className="text-xs text-cosmos-400">共 {section.items.length} 个关键入口</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                  {section.items.map((item) => {
+                    const Icon = item.icon
+                    return (
+                      <Link key={item.href + item.title} href={item.href} className="group">
+                        <Card className={`h-full p-4 bg-cosmos-900/50 border-cosmos-700/50 transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-lg ${item.cardClass}`}>
+                          <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-3 transition-transform group-hover:scale-105 ${item.iconWrapClass}`}>
+                            <Icon className={`w-5 h-5 ${item.iconClass}`} />
+                          </div>
+                          <h5 className="text-white font-medium mb-1">{item.title}</h5>
+                          <p className="text-cosmos-400 text-xs">{item.description}</p>
+                          <span className={`inline-flex mt-3 px-2 py-1 rounded-full text-[11px] ${item.badgeClass}`}>
+                            {item.badge}
+                          </span>
+                        </Card>
+                      </Link>
+                    )
+                  })}
+                </div>
+                </Card>
+              </div>
+            ))}
+
+            <Card className="p-6 bg-cosmos-900/60 border-cosmos-700/45">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-white text-lg font-semibold">运营指标看板（演示目标）</h4>
+                <Link href="/competition" className="text-sm text-star-300 hover:text-star-200 transition-colors">
+                  查看完整评审映射
+                </Link>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {ecosystemMetrics.map((metric) => (
+                  <div key={metric.label} className="p-4 rounded-lg bg-cosmos-800/70 border border-cosmos-700/50">
+                    <div className="text-cosmos-400 text-xs mb-1">{metric.label}</div>
+                    <div className={`text-xl font-bold ${metric.color}`}>{metric.value}</div>
+                  </div>
+                ))}
+              </div>
+            </Card>
           </div>
-        </div>
+        )}
 
-        {/* 额外内容模块区域 - 填充圆圈区域 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          {/* 学习目标追踪 */}
-          <div>
-            <StudyGoals 
-              userId={userData?.id || 'demo'} 
-              studyStats={{
-                streak: studyStats.streak,
-                todayCompleted: studyStats.todayCompleted,
-                accuracy: Math.round((studyStats.todayCompleted > 0 ? 85 : 0)), // 模拟准确率
-                totalMastered: studyStats.totalMastered
-              }}
-            />
-          </div>
-
-          {/* 每日挑战 */}
-          <div>
-            <DailyChallenge 
-              userId={userData?.id || 'demo'}
-              studyStats={{
-                streak: studyStats.streak,
-                todayCompleted: studyStats.todayCompleted,
-                accuracy: Math.round((studyStats.todayCompleted > 0 ? 85 : 0)), // 模拟准确率
-                totalMastered: studyStats.totalMastered
-              }}
-            />
-          </div>
-        </div>
-
-        {/* 快捷操作区 */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mt-8">
-          <Link href="/growth-starmap" className="group">
-            <Card className="p-4 text-center hover:border-star-400/50 transition-all duration-300 group-hover:scale-105 bg-gradient-to-br from-star-500/20 to-yellow-500/20 border-star-400/50">
-              <div className="w-12 h-12 bg-star-400/30 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                <Star className="w-6 h-6 text-star-400 animate-pulse" />
-              </div>
-              <h4 className="font-semibold text-white mb-1">成长星图</h4>
-              <p className="text-xs text-cosmos-400">学习数据</p>
-            </Card>
-          </Link>
-
-          <Link href="/community" className="group">
-            <Card className="p-4 text-center hover:border-purple-400/50 transition-all duration-300 group-hover:scale-105 bg-gradient-to-br from-purple-500/10 to-pink-500/10 border-purple-400/30">
-              <div className="w-12 h-12 bg-purple-400/20 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                <Users className="w-6 h-6 text-purple-400" />
-              </div>
-              <h4 className="font-semibold text-white mb-1">星光殿堂</h4>
-              <p className="text-xs text-cosmos-400">社区交流</p>
-            </Card>
-          </Link>
-
-          <Link href="/store" className="group">
-            <Card className="p-4 text-center hover:border-star-400/50 transition-all duration-300 group-hover:scale-105">
-              <div className="w-12 h-12 bg-star-400/20 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                <ShoppingCart className="w-6 h-6 text-star-400" />
-              </div>
-              <h4 className="font-semibold text-white mb-1">课程商店</h4>
-              <p className="text-xs text-cosmos-400">购买课程</p>
-            </Card>
-          </Link>
-
-          <Link href="/my-courses" className="group">
-            <Card className="p-4 text-center hover:border-sprout-400/50 transition-all duration-300 group-hover:scale-105">
-              <div className="w-12 h-12 bg-sprout-400/20 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                <BookOpen className="w-6 h-6 text-sprout-400" />
-              </div>
-              <h4 className="font-semibold text-white mb-1">我的课程</h4>
-              <p className="text-xs text-cosmos-400">已购课程</p>
-            </Card>
-          </Link>
-
-          <Link href="/lesson" className="group">
-            <Card className="p-4 text-center hover:border-blue-400/50 transition-all duration-300 group-hover:scale-105">
-              <div className="w-12 h-12 bg-blue-400/20 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                <Target className="w-6 h-6 text-blue-400" />
-              </div>
-              <h4 className="font-semibold text-white mb-1">免费课程</h4>
-              <p className="text-xs text-cosmos-400">系统课程</p>
-            </Card>
-          </Link>
-          
-          <Link href="/quiz" className="group">
-            <Card className="p-4 text-center hover:border-green-400/50 transition-all duration-300 group-hover:scale-105">
-              <div className="w-12 h-12 bg-green-400/20 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                <Trophy className="w-6 h-6 text-green-400" />
-              </div>
-              <h4 className="font-semibold text-white mb-1">练习中心</h4>
-              <p className="text-xs text-cosmos-400">互动练习</p>
-            </Card>
-          </Link>
-          
-          <Link href="/chat" className="group">
-            <Card className="p-4 text-center hover:border-orange-400/50 transition-all duration-300 group-hover:scale-105">
-              <div className="w-12 h-12 bg-orange-400/20 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                <Rocket className="w-6 h-6 text-orange-400" />
-              </div>
-              <h4 className="font-semibold text-white mb-1">AI对话</h4>
-              <p className="text-xs text-cosmos-400">智能练习</p>
-            </Card>
-          </Link>
-          
-          <Link href="/recharge" className="group">
-            <Card className="p-4 text-center hover:border-yellow-400/50 transition-all duration-300 group-hover:scale-105">
-              <div className="w-12 h-12 bg-yellow-400/20 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
-                <Coins className="w-6 h-6 text-yellow-400" />
-              </div>
-              <h4 className="font-semibold text-white mb-1">充值中心</h4>
-              <p className="text-xs text-cosmos-400">获取星币</p>
-            </Card>
-          </Link>
-        </div>
         {/* 底部导航提示 */}
         <div className="text-center mt-12 pb-8">
           <p className="text-cosmos-500 text-sm flex items-center justify-center gap-2">
             <Sparkles className="w-4 h-4" />
-            每天学习一点，进步看得见
+            四分区工作台已启用，学习路径更清晰
             <Sparkles className="w-4 h-4" />
           </p>
         </div>

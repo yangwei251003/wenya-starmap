@@ -13,6 +13,7 @@ import {
   Battery, 
   Target, 
   Trophy,
+  BookOpen,
   Flame,
   Brain,
   BarChart3,

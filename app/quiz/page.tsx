@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { 
   ExerciseType, 
   Evaluation,
-  Answer 
+  Answer,
+  AIExplainItem
 } from '@/types'
 import { 
   ExerciseCard, 
@@ -28,6 +29,7 @@ export default function QuizPage() {
   const [showAchievements, setShowAchievements] = useState(false)
   const [showCelebration, setShowCelebration] = useState(false)
   const [startTime, setStartTime] = useState<number>(0)
+  const [analysisLoading, setAnalysisLoading] = useState(false)
 
   // 开始练习
   const handleStartExercise = async (type: ExerciseType) => {
@@ -123,6 +125,43 @@ export default function QuizPage() {
     setResult(exerciseResult)
     setShowCelebration(true)
 
+    // 生成错题解析
+    const wrongAnswers = completedSession.answers.filter(a => !a.isCorrect)
+    if (wrongAnswers.length > 0) {
+      setAnalysisLoading(true)
+      try {
+        const analysis = await Promise.all(
+          wrongAnswers.map(async (answer) => {
+            const exercise = completedSession.exercises.find(e => e.id === answer.exerciseId)
+            if (!exercise) return null
+
+            const response = await fetch('/api/ai/explain', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                question: exercise.question,
+                correctAnswer: exercise.correctAnswer,
+                userAnswer: answer.userAnswer,
+                type: exercise.type
+              })
+            })
+
+            const data = await response.json()
+            return data.data as AIExplainItem
+          })
+        )
+
+        const cleaned = analysis.filter(Boolean) as AIExplainItem[]
+        setResult(prev => (prev ? { ...prev, analysisItems: cleaned } : prev))
+      } catch (error) {
+        console.error('AI错题解析失败:', error)
+      } finally {
+        setAnalysisLoading(false)
+      }
+    } else {
+      setResult(prev => (prev ? { ...prev, analysisItems: [] } : prev))
+    }
+
     if (exerciseResult.achievements.length > 0) {
       setTimeout(() => setShowAchievements(true), 2000)
     }
@@ -140,6 +179,7 @@ export default function QuizPage() {
     setSession(null)
     setResult(null)
     setViewState('menu')
+    setAnalysisLoading(false)
   }
 
   // 返回主页
@@ -152,6 +192,7 @@ export default function QuizPage() {
     setSession(null)
     setResult(null)
     setViewState('menu')
+    setAnalysisLoading(false)
   }
 
   // 返回菜单
@@ -159,6 +200,7 @@ export default function QuizPage() {
     setSession(null)
     setResult(null)
     setViewState('menu')
+    setAnalysisLoading(false)
   }
 
   // 计算用时
@@ -217,6 +259,7 @@ export default function QuizPage() {
               result={result}
               onRestart={handleRestart}
               onBackToMenu={handleBackToMenu}
+              analysisLoading={analysisLoading}
             />
           </div>
         )}

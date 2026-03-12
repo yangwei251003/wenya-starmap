@@ -8,8 +8,10 @@ import { performanceMonitor } from './performance-monitor'
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api'
 
 // 智谱GLM API配置
-const GLM_API_KEY = process.env.GLM_API_KEY
-const GLM_API_URL = 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
+const GLM_API_KEY = process.env.GLM_API_KEY?.trim()
+const GLM_API_URL =
+  process.env.GLM_API_URL?.trim() ||
+  'https://open.bigmodel.cn/api/paas/v4/chat/completions'
 
 // API超时配置（毫秒）
 const API_TIMEOUT = 30000 // 30秒

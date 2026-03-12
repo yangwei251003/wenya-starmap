@@ -58,7 +58,13 @@ export default function MobileStudyPage() {
     }
 
     // 初始化学习单词
-    const shuffledWords = [...wordsData].sort(() => Math.random() - 0.5).slice(0, 20)
+    const shuffledWords = [...wordsData]
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 20)
+      .map((w) => ({
+        ...w,
+        translation: w.exampleCn || ''
+      }))
     setSessionWords(shuffledWords)
     setCurrentWord(shuffledWords[0])
   }, [])

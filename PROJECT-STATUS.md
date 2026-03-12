@@ -56,7 +56,7 @@
 - ✅ AI聊天接口（`/api/ai/chat`）
 - ✅ 智谱GLM API集成
 - ✅ 聊天页面（`/chat`）
-- ✅ API密钥配置：`2c837f2a56aa4c11a2376dbbec525b3e.qpXxYLbqisUAf7ep`
+- ✅ API密钥配置：`已配置（本地 .env.local）`
 
 #### 📊 Dashboard仪表板
 - ✅ 学习进度展示
@@ -226,7 +226,7 @@ components/
 ### 环境变量（`.env.local`）
 ```bash
 # AI服务
-GLM_API_KEY=2c837f2a56aa4c11a2376dbbec525b3e.qpXxYLbqisUAf7ep
+GLM_API_KEY=your_glm_api_key_here
 GLM_API_URL=https://open.bigmodel.cn/api/paas/v4/chat/completions
 
 # 认证

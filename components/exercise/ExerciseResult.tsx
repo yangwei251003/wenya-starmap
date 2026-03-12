@@ -9,12 +9,14 @@ interface ExerciseResultProps {
   result: ExerciseResultType
   onRestart: () => void
   onBackToMenu: () => void
+  analysisLoading?: boolean
 }
 
 export function ExerciseResult({
   result,
   onRestart,
-  onBackToMenu
+  onBackToMenu,
+  analysisLoading = false
 }: ExerciseResultProps) {
   const accuracyPercentage = Math.round(result.accuracy * 100)
   const minutes = Math.floor(result.totalTime / 60)
@@ -141,6 +143,48 @@ export function ExerciseResult({
             <p className="text-cosmos-200">{result.feedback}</p>
           </motion.div>
         )}
+
+        {/* AI错题解析 */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.7 }}
+          className="bg-cosmos-800/40 p-4 rounded-lg mb-6 border border-cosmos-700"
+        >
+          <h3 className="text-lg font-semibold text-cosmos-100 mb-3 flex items-center gap-2">
+            <span>🤖</span>
+            <span>AI错题解析</span>
+          </h3>
+
+          {analysisLoading && (
+            <div className="space-y-2">
+              <div className="h-16 bg-cosmos-700/40 rounded-lg animate-pulse" />
+              <div className="h-16 bg-cosmos-700/40 rounded-lg animate-pulse" />
+            </div>
+          )}
+
+          {!analysisLoading && (!result.analysisItems || result.analysisItems.length === 0) && (
+            <p className="text-cosmos-400 text-sm">本次没有错题，继续保持！</p>
+          )}
+
+          {!analysisLoading && result.analysisItems && result.analysisItems.length > 0 && (
+            <div className="space-y-3">
+              {result.analysisItems.map((item, idx) => (
+                <details key={idx} className="bg-cosmos-900/40 rounded-lg p-3">
+                  <summary className="cursor-pointer text-cosmos-200 font-medium">
+                    错题解析 #{idx + 1}
+                  </summary>
+                  <div className="mt-3 space-y-2 text-sm text-cosmos-300">
+                    <p><span className="text-cosmos-400">错误点：</span>{item.issue}</p>
+                    <p><span className="text-cosmos-400">正确表达：</span>{item.correction}</p>
+                    <p><span className="text-cosmos-400">讲解：</span>{item.explanation}</p>
+                    <p><span className="text-cosmos-400">示例：</span>{item.example}</p>
+                  </div>
+                </details>
+              ))}
+            </div>
+          )}
+        </motion.div>
 
         {/* 成就列表 */}
         {result.achievements.length > 0 && (

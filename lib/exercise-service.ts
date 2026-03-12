@@ -8,7 +8,8 @@ import {
   Answer,
   UserPerformance,
   StarAchievement,
-  AchievementType
+  AchievementType,
+  AIExplainItem
 } from '@/types'
 import { aiTutor } from './ai-tutor'
 import { getExercisesByLevel, getRandomExercises } from './exercises-data'
@@ -39,6 +40,7 @@ export interface ExerciseResult {
   score: number
   achievements: StarAchievement[]
   feedback: string
+  analysisItems?: AIExplainItem[]
 }
 
 /**

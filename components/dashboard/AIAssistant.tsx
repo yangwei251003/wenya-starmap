@@ -7,6 +7,7 @@ import {
   Clock, Target, Sparkles, ChevronRight,
   Brain, Zap, Star
 } from 'lucide-react'
+import { AIDiagnosis } from '@/types'
 
 interface AIRecommendation {
   id: string
@@ -25,9 +26,18 @@ interface AIAssistantProps {
     accuracy: number
     totalMastered: number
   }
+  diagnosis?: AIDiagnosis | null
+  diagnosisLoading?: boolean
+  onGenerateDiagnosis?: () => void
 }
 
-export default function AIAssistant({ userId, studyStats }: AIAssistantProps) {
+export default function AIAssistant({ 
+  userId, 
+  studyStats, 
+  diagnosis, 
+  diagnosisLoading = false,
+  onGenerateDiagnosis 
+}: AIAssistantProps) {
   const [recommendations, setRecommendations] = useState<AIRecommendation[]>([])
   const [isThinking, setIsThinking] = useState(true)
   const [currentTip, setCurrentTip] = useState(0)
@@ -195,6 +205,16 @@ export default function AIAssistant({ userId, studyStats }: AIAssistantProps) {
           )}
         </div>
 
+        {/* AI 报告按钮 */}
+        <button
+          onClick={() => onGenerateDiagnosis?.()}
+          className="w-full mb-3 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-lg transition-all flex items-center justify-center gap-2"
+          disabled={diagnosisLoading}
+        >
+          <Brain className="w-4 h-4" />
+          {diagnosisLoading ? '生成AI报告中...' : '生成AI学习诊断'}
+        </button>
+
         {/* 学习小贴士轮播 */}
         <div className="bg-cosmos-800/30 rounded-lg p-3 mb-3">
           <div className="flex items-center gap-2 mb-2">
@@ -226,6 +246,37 @@ export default function AIAssistant({ userId, studyStats }: AIAssistantProps) {
           </div>
         </div>
       </Card>
+
+      {/* AI 今日学习计划 */}
+      {diagnosis?.dailyPlan && (
+        <Card className="p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Star className="w-5 h-5 text-star-400" />
+            <h4 className="text-white font-semibold">{diagnosis.dailyPlan.title}</h4>
+          </div>
+          <div className="space-y-3">
+            {diagnosis.dailyPlan.items.map((item, idx) => (
+              <div
+                key={`${item.title}-${idx}`}
+                className="p-3 rounded-lg bg-cosmos-800/50 border border-cosmos-700 hover:border-star-400/50 transition-all cursor-pointer"
+                onClick={() => {
+                  if (typeof window !== 'undefined') {
+                    window.location.href = item.url
+                  }
+                }}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white text-sm font-medium">{item.title}</p>
+                    <p className="text-cosmos-400 text-xs">{item.reason}</p>
+                  </div>
+                  <span className="text-star-400 text-xs">{item.action}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* AI 建议列表 */}
       <Card className="p-4">

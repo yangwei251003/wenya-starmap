@@ -247,6 +247,43 @@ export interface Feedback {
   estimated_progress: number
 }
 
+// ==================== AI 功能新增类型 ====================
+
+export interface AIStudyPlanItem {
+  title: string
+  action: string
+  url: string
+  reason?: string
+}
+
+export interface AIStudyPlan {
+  title: string
+  items: AIStudyPlanItem[]
+}
+
+export interface AIDiagnosis {
+  strengths: string[]
+  weaknesses: string[]
+  recommendations: string[]
+  weekPlan: string[]
+  dailyPlan: AIStudyPlan
+}
+
+export interface AIExplainItem {
+  issue: string
+  correction: string
+  explanation: string
+  example: string
+}
+
+export interface AIWritingReview {
+  score: number
+  issues: string[]
+  corrections: Array<{ original: string; corrected: string; note: string }>
+  improvedVersion: string
+  advancedExpressions: string[]
+}
+
 // API响应接口
 export interface APIResponse<T = any> {
   success: boolean
