@@ -31,8 +31,8 @@ npm run dev
 ```
 
 ### 4. 访问应用
-- 主页: http://localhost:3001
-- 快速体验: http://localhost:3001/demo
+- 主页: https://wenya-starmap-e6f3.vercel.app/
+- 快速体验: [http://localhost:3001/demo](https://wenya-starmap-e6f3.vercel.app/)
 
 ## 📋 环境变量配置
 
