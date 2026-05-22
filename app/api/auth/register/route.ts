@@ -1,16 +1,23 @@
-// 用户注册API路由
-
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 import { InputValidator } from '@/lib/security'
 import { learningPathService } from '@/lib/learning-path'
+import { env, hasSupabase, hasSupabaseServiceRole } from '@/lib/env'
+import { supabaseAdmin } from '@/lib/supabase'
 import { logger } from '@/lib/error-handler'
+
+function createAuthClient() {
+  return createClient(
+    env.supabaseUrl || 'https://your-project.supabase.co',
+    env.supabaseAnonKey || 'your-anon-key'
+  )
+}
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { username, email, password, level } = body
 
-    // 输入验证
     if (!username || !email || !password || !level) {
       return NextResponse.json(
         { error: { message: '请填写所有必需字段' } },
@@ -18,7 +25,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 验证邮箱格式
     if (!InputValidator.isValidEmail(email)) {
       return NextResponse.json(
         { error: { message: '邮箱格式不正确' } },
@@ -26,7 +32,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 验证用户名
     const usernameValidation = InputValidator.isValidUsername(username)
     if (!usernameValidation.valid) {
       return NextResponse.json(
@@ -35,7 +40,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 验证密码强度
     const passwordValidation = InputValidator.isValidPassword(password)
     if (!passwordValidation.valid) {
       return NextResponse.json(
@@ -44,49 +48,82 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 模拟用户创建（在实际应用中，这里会保存到数据库）
-    const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-    
-    // 创建学习路径
-    const learningPath = await learningPathService.createPathForNewUser(userId, {
-      level: level as any,
-      targetLevel: level === 'beginner' ? 'intermediate' : 'advanced'
-    })
-
-    // 模拟用户数据（包含星币初始值，实际发放在客户端完成）
-    const user = {
-      id: userId,
-      username,
-      email,
-      level,
-      starCoins: 200, // 新用户初始星币（实际发放在客户端登录后完成）
-      learningPath,
-      purchasedCourses: [],
-      createdAt: new Date().toISOString()
+    if (!hasSupabase()) {
+      return NextResponse.json(
+        { error: { message: 'Supabase 配置缺失，请检查环境变量' } },
+        { status: 500 }
+      )
     }
 
-    // 记录注册成功
-    logger.info('User registered successfully', { userId, username, email })
+    const authClient = createAuthClient()
+    const { data, error } = await authClient.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          username,
+          level,
+        },
+      },
+    })
 
-    // 返回成功响应
+    if (error || !data.user) {
+      return NextResponse.json(
+        { error: { message: error?.message || '注册失败，请稍后重试' } },
+        { status: 400 }
+      )
+    }
+
+    if (hasSupabaseServiceRole() && supabaseAdmin) {
+      const learningPath = await learningPathService.createPathForNewUser(data.user.id, {
+        level: level as any,
+        targetLevel: level === 'beginner' ? 'intermediate' : 'advanced',
+      })
+
+      const { error: profileError } = await supabaseAdmin.from('user_profiles').upsert({
+        id: data.user.id,
+        username,
+        email,
+        level,
+        star_coins: 200,
+        learning_progress: 0,
+        language_star_map: learningPath ? { pathId: learningPath.id } : {},
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+
+      if (profileError) {
+        logger.warn('Profile upsert failed on register', profileError as Error)
+      }
+    }
+
+    logger.info('User registered successfully', {
+      userId: data.user.id,
+      username,
+      email,
+    })
+
     return NextResponse.json({
       success: true,
       data: {
         user: {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          level: user.level,
-          starCoins: user.starCoins,
-          isNewUser: true // 标记为新用户，客户端需要发放注册奖励
+          id: data.user.id,
+          username,
+          email,
+          level,
+          starCoins: 200,
+          isNewUser: true,
         },
-        message: '注册成功！欢迎加入问芽星图！获得200星币新人礼包！'
-      }
+        session: data.session ? {
+          accessToken: data.session.access_token,
+          refreshToken: data.session.refresh_token,
+        } : null,
+        message: '注册成功！欢迎加入问芽星图！获得200星币新人礼包！',
+      },
     })
-
   } catch (error) {
     logger.error('Registration failed', error as Error)
-    
+
     return NextResponse.json(
       { error: { message: '注册失败，请稍后重试' } },
       { status: 500 }

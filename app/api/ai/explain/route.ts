@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { callGLMAPI } from '@/lib/api'
+import { callOpenRouterAPI } from '@/lib/openrouter'
 import { buildExplainPrompt, parseExplainResponse } from '@/lib/ai-prompts'
 import { getFallbackExplain } from '@/lib/ai-fallback'
+import { extractJsonText } from '@/lib/ai-response'
+import { env } from '@/lib/env'
 import { AIExplainItem } from '@/types'
+
+export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   let requestBody: any = {}
@@ -28,20 +32,27 @@ export async function POST(request: NextRequest) {
 
   try {
     const prompt = buildExplainPrompt({ question, correctAnswer, userAnswer, type })
-    const messages = [
-      { role: 'system', content: '你是专业英语教师，擅长纠错与讲解。' },
-      { role: 'user', content: prompt }
-    ]
-
-    const response = await callGLMAPI(messages, 'glm-4-flash')
+    const response = await callOpenRouterAPI(
+      [
+        { role: 'system', content: '你是专业英语教师，擅长纠错与讲解。' },
+        { role: 'user', content: prompt },
+      ],
+      {
+        model: env.openRouterModel,
+        temperature: 0.25,
+        maxTokens: 900,
+      }
+    )
 
     if (response.success && response.data) {
-      const parsed = parseExplainResponse(response.data)
+      const parsed =
+        parseExplainResponse(response.data) ||
+        parseExplainResponse(extractJsonText(response.data) || '')
       if (parsed) {
         return NextResponse.json({
           success: true,
           data: parsed,
-          isSimulated: false
+          isSimulated: false,
         })
       }
     }
@@ -50,7 +61,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: fallback,
-      isSimulated: true
+      isSimulated: true,
     })
   } catch (error) {
     console.error('Explain error:', error)
@@ -58,7 +69,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: fallback,
-      isSimulated: true
+      isSimulated: true,
     })
   }
 }

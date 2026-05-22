@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
-import { fsrs } from '@/utils/fsrs'
+import { supabaseAdmin } from '@/lib/supabase'
+import { fsrs, State } from '@/utils/fsrs'
+
+export const dynamic = 'force-dynamic'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,13 +10,16 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
-    
+
     if (!userId) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
     }
 
-    // 获取用户的学习记录
-    const { data: studyLogs, error } = await supabase
+    if (!supabaseAdmin) {
+      return NextResponse.json({ error: 'Database service is unavailable' }, { status: 503 })
+    }
+
+    const { data: studyLogs, error } = await supabaseAdmin
       .from('study_logs')
       .select('*')
       .eq('user_id', userId)
@@ -27,8 +32,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch study logs' }, { status: 500 })
     }
 
-    // 计算每个单词的记忆强度
-    const memoryData = studyLogs.map(log => {
+    const memoryData = (studyLogs || []).map(log => {
       const card = {
         id: log.word_id,
         due: new Date(log.next_review),
@@ -38,8 +42,15 @@ export async function GET(request: NextRequest) {
         scheduled_days: log.scheduled_days,
         reps: log.reps,
         lapses: log.lapses,
-        state: log.state,
-        last_review: log.last_review ? new Date(log.last_review) : undefined
+        state:
+          log.state === 'new'
+            ? State.New
+            : log.state === 'learning'
+              ? State.Learning
+              : log.state === 'review'
+                ? State.Review
+                : State.Relearning,
+        last_review: log.last_review ? new Date(log.last_review) : undefined,
       }
 
       const memoryStrength = fsrs.getMemoryStrength(card)
@@ -53,12 +64,11 @@ export async function GET(request: NextRequest) {
         state: log.state,
         last_review: log.last_review,
         reps: log.reps,
-        lapses: log.lapses
+        lapses: log.lapses,
       }
     })
 
     return NextResponse.json(memoryData)
-
   } catch (error) {
     console.error('Error in memory data API:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

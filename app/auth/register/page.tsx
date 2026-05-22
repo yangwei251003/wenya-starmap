@@ -116,6 +116,12 @@ export default function RegisterPage() {
         // 保存用户信息到localStorage
         const userData = response.data.user
         localStorage.setItem('wenya_user', JSON.stringify(userData))
+        if (response.data.session?.accessToken) {
+          localStorage.setItem('wenya_token', response.data.session.accessToken)
+        }
+        if (response.data.session?.refreshToken) {
+          localStorage.setItem('wenya_refresh_token', response.data.session.refreshToken)
+        }
         
         // 发放新用户注册奖励
         if (userData.isNewUser) {

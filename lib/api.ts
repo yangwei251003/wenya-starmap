@@ -3,19 +3,13 @@
 import { APIResponse, APIError } from '@/types'
 import { AppError, ErrorType, ErrorSeverity, logger, errorHandler } from './error-handler'
 import { performanceMonitor } from './performance-monitor'
+import { callOpenRouterAPI, type OpenRouterMessage } from './openrouter'
 
 // API基础URL配置
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api'
 
-// 智谱GLM API配置
-const GLM_API_KEY = process.env.GLM_API_KEY?.trim()
-const GLM_API_URL =
-  process.env.GLM_API_URL?.trim() ||
-  'https://open.bigmodel.cn/api/paas/v4/chat/completions'
-
 // API超时配置（毫秒）
 const API_TIMEOUT = 30000 // 30秒
-const GLM_API_TIMEOUT = 60000 // 60秒
 
 /**
  * 带超时的fetch请求
@@ -57,9 +51,13 @@ export async function apiRequest<T = any>(
   const url = `${API_BASE_URL}${endpoint}`
   const method = options.method || 'GET'
   const startTime = performance.now()
+
+  const authToken =
+    typeof window !== 'undefined' ? localStorage.getItem('wenya_token') : null
   
   const defaultHeaders = {
     'Content-Type': 'application/json',
+    ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
   }
 
   logger.info(`API Request: ${method} ${endpoint}`)
@@ -169,122 +167,24 @@ export async function apiDelete<T = any>(endpoint: string): Promise<APIResponse<
   return apiRequest<T>(endpoint, { method: 'DELETE' })
 }
 
-// 智谱GLM API调用函数
+// OpenRouter AI API调用函数（兼容旧函数名）
 export async function callGLMAPI(
   messages: Array<{ role: string; content: string }>,
   model: string = 'glm-4'
 ): Promise<APIResponse<string>> {
-  if (!GLM_API_KEY) {
-    const error = new AppError(
-      '智谱GLM API密钥未配置',
-      ErrorType.AI_SERVICE_ERROR,
-      ErrorSeverity.CRITICAL,
-      'AI服务配置错误，请联系管理员'
-    )
-    errorHandler.handle(error)
+  const normalizedMessages: OpenRouterMessage[] = messages.map((message) => ({
+    role:
+      message.role === 'assistant' || message.role === 'system'
+        ? message.role
+        : 'user',
+    content: message.content,
+  }))
 
-    return {
-      success: false,
-      error: {
-        code: 'MISSING_API_KEY',
-        message: error.userMessage,
-      },
-      timestamp: new Date().toISOString(),
-    }
-  }
+  const response = await callOpenRouterAPI(normalizedMessages, {
+    model: model.startsWith('glm') ? undefined : model,
+  })
 
-  const startTime = performance.now()
-  logger.info('GLM API Request', { model, messageCount: messages.length })
-
-  try {
-    const response = await fetchWithTimeout(
-      GLM_API_URL,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${GLM_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model,
-          messages,
-          temperature: 0.7,
-          max_tokens: 1000,
-        }),
-      },
-      GLM_API_TIMEOUT
-    )
-
-    const duration = performance.now() - startTime
-    const data = await response.json()
-
-    // 记录GLM API性能
-    performanceMonitor.recordAPIMetric(
-      '/glm/chat',
-      'POST',
-      duration,
-      response.ok,
-      response.status,
-      { model, messageCount: messages.length }
-    )
-
-    if (!response.ok) {
-      const error = new AppError(
-        data.error?.message || 'GLM API调用失败',
-        ErrorType.AI_SERVICE_ERROR,
-        ErrorSeverity.HIGH,
-        'AI服务暂时不可用，请稍后重试',
-        { statusCode: response.status, model }
-      )
-      
-      errorHandler.handle(error)
-
-      return {
-        success: false,
-        error: {
-          code: 'GLM_API_ERROR',
-          message: error.userMessage,
-        },
-        timestamp: new Date().toISOString(),
-      }
-    }
-
-    const content = data.choices?.[0]?.message?.content || ''
-
-    logger.info('GLM API Success', { 
-      duration: `${duration.toFixed(2)}ms`,
-      responseLength: content.length 
-    })
-
-    return {
-      success: true,
-      data: content,
-      timestamp: new Date().toISOString(),
-    }
-  } catch (error) {
-    const duration = performance.now() - startTime
-    
-    // 记录失败的GLM API调用
-    performanceMonitor.recordAPIMetric(
-      '/glm/chat',
-      'POST',
-      duration,
-      false,
-      undefined,
-      { model, messageCount: messages.length }
-    )
-
-    const appError = errorHandler.handle(error as Error, { model, messageCount: messages.length })
-
-    return {
-      success: false,
-      error: {
-        code: appError.type,
-        message: appError.userMessage,
-      },
-      timestamp: new Date().toISOString(),
-    }
-  }
+  return response
 }
 
 // 用户认证相关API

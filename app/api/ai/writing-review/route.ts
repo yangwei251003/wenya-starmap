@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { callGLMAPI } from '@/lib/api'
+import { callOpenRouterAPI } from '@/lib/openrouter'
 import { buildWritingReviewPrompt, parseWritingReviewResponse } from '@/lib/ai-prompts'
 import { getFallbackWritingReview } from '@/lib/ai-fallback'
+import { extractJsonText } from '@/lib/ai-response'
+import { env } from '@/lib/env'
 import { AIWritingReview } from '@/types'
+
+export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   let requestBody: any = {}
@@ -28,20 +32,27 @@ export async function POST(request: NextRequest) {
 
   try {
     const promptText = buildWritingReviewPrompt({ prompt, essay, level })
-    const messages = [
-      { role: 'system', content: '你是英语写作批改老师。' },
-      { role: 'user', content: promptText }
-    ]
-
-    const response = await callGLMAPI(messages, 'glm-4-flash')
+    const response = await callOpenRouterAPI(
+      [
+        { role: 'system', content: '你是英语写作批改老师。' },
+        { role: 'user', content: promptText },
+      ],
+      {
+        model: env.openRouterModel,
+        temperature: 0.2,
+        maxTokens: 1400,
+      }
+    )
 
     if (response.success && response.data) {
-      const parsed = parseWritingReviewResponse(response.data)
+      const parsed =
+        parseWritingReviewResponse(response.data) ||
+        parseWritingReviewResponse(extractJsonText(response.data) || '')
       if (parsed) {
         return NextResponse.json({
           success: true,
           data: parsed,
-          isSimulated: false
+          isSimulated: false,
         })
       }
     }
@@ -50,7 +61,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: fallback,
-      isSimulated: true
+      isSimulated: true,
     })
   } catch (error) {
     console.error('Writing review error:', error)
@@ -58,7 +69,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: fallback,
-      isSimulated: true
+      isSimulated: true,
     })
   }
 }

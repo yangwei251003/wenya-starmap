@@ -1,12 +1,10 @@
-/**
- * 获取下一个待学习单词 API
- */
-
 import { NextRequest, NextResponse } from 'next/server'
+import { getStudyQueue } from '@/lib/study-db'
+
+export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    // 从查询参数获取用户ID
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
 
@@ -17,16 +15,22 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // 注意：实际的SRS逻辑在客户端执行（使用localStorage）
-    // 这个API主要用于未来扩展到服务端存储
+    const result = await getStudyQueue(userId)
+    const nextCard = result.queue[0]
+
+    if (!nextCard) {
+      return NextResponse.json({
+        success: true,
+        data: {
+          message: '当前没有待学习内容',
+        },
+      })
+    }
 
     return NextResponse.json({
       success: true,
-      data: {
-        message: '请使用客户端SRS服务获取单词'
-      }
+      data: nextCard,
     })
-
   } catch (error) {
     return NextResponse.json(
       { error: { message: '获取单词失败' } },

@@ -1,9 +1,19 @@
 import { createClient } from '@supabase/supabase-js'
+import { env } from './env'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://your-project.supabase.co'
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'your-anon-key'
+const supabaseUrl = env.supabaseUrl || 'https://your-project.supabase.co'
+const supabaseAnonKey = env.supabaseAnonKey || 'your-anon-key'
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+
+export const supabaseAdmin = env.supabaseServiceRoleKey
+  ? createClient(supabaseUrl, env.supabaseServiceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    })
+  : null
 
 // 数据库类型定义
 export interface StudyLog {
@@ -46,6 +56,21 @@ export interface UserStudySettings {
   maximum_interval: number
   learning_steps: number[]
   relearning_steps: number[]
+  created_at: string
+  updated_at: string
+}
+
+export interface UserProfile {
+  id: string
+  username: string
+  email: string
+  phone?: string | null
+  level: 'beginner' | 'intermediate' | 'advanced'
+  avatar_url?: string | null
+  bio?: string | null
+  star_coins: number
+  learning_progress: number
+  language_star_map: Record<string, any>
   created_at: string
   updated_at: string
 }

@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Send, Bot, User, Sparkles, Lightbulb, RefreshCw, Volume2, VolumeX } from 'lucide-react'
 import { speechService } from '@/lib/speech-service'
+import { StarVoiceAvatar } from '@/components/ai/StarVoiceAvatar'
 
 interface Message {
   id: string
@@ -171,6 +172,14 @@ export default function ChatPage() {
       />
 
       <div className="flex-1 max-w-3xl mx-auto w-full px-4 pb-4 flex flex-col">
+        <Card className={`p-4 mb-4 ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
+          <StarVoiceAvatar
+            active={isTyping}
+            speaking={playingMessageId !== null}
+            muted={!speechEnabled}
+          />
+        </Card>
+
         {/* 语音控制 */}
         <div className="mb-4 flex justify-end">
           <button

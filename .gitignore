@@ -23,10 +23,13 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+dev.*.log
+.playwright-mcp/
 
 # local env files
 .env*.local
 .env
+API密钥管理.env
 
 # vercel
 .vercel

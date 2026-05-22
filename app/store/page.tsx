@@ -10,8 +10,6 @@ import {
   Coins, CheckCircle, Sparkles, Crown, Zap, Gift, BookOpen
 } from 'lucide-react'
 import { storeCourses, courseCategories, getCourseById } from '@/lib/store-courses-data'
-import { starCoinService } from '@/lib/star-coin-service'
-import { purchasedCoursesService } from '@/lib/purchased-courses-service'
 import { StoreCourse, EnglishLevel } from '@/types'
 
 export default function StorePage() {
@@ -27,14 +25,34 @@ export default function StorePage() {
   const [selectedCourse, setSelectedCourse] = useState<StoreCourse | null>(null)
   const [purchaseResult, setPurchaseResult] = useState<{ success: boolean; message: string } | null>(null)
 
+  const loadStoreData = async (uid: string) => {
+    const [profileRes, purchasesRes] = await Promise.all([
+      fetch(`/api/profile?userId=${encodeURIComponent(uid)}`),
+      fetch(`/api/store/purchases?userId=${encodeURIComponent(uid)}`),
+    ])
+
+    if (profileRes.ok) {
+      const profileJson = await profileRes.json()
+      setStarCoins(profileJson.data?.star_coins ?? 0)
+    } else {
+      setStarCoins(0)
+    }
+
+    if (purchasesRes.ok) {
+      const purchasesJson = await purchasesRes.json()
+      setPurchasedIds((purchasesJson.data || []).map((item: any) => item.course_id))
+    } else {
+      setPurchasedIds([])
+    }
+  }
+
   useEffect(() => {
     setMounted(true)
     const user = localStorage.getItem('wenya_user')
     if (user) {
       const userData = JSON.parse(user)
       setUserId(userData.id)
-      setStarCoins(starCoinService.getBalance(userData.id))
-      setPurchasedIds(purchasedCoursesService.getPurchasedCourses(userData.id).map(c => c.courseId))
+      loadStoreData(userData.id)
     }
   }, [])
 
@@ -60,13 +78,25 @@ export default function StorePage() {
   const confirmPurchase = () => {
     if (!selectedCourse || !userId) return
 
-    const result = purchasedCoursesService.purchaseCourse(userId, selectedCourse.id)
-    setPurchaseResult(result)
-
-    if (result.success) {
-      setStarCoins(starCoinService.getBalance(userId))
-      setPurchasedIds([...purchasedIds, selectedCourse.id])
-    }
+    fetch('/api/store/purchase', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, courseId: selectedCourse.id }),
+    })
+      .then(async (response) => {
+        const data = await response.json()
+        if (!response.ok) {
+          return { success: false, message: data.error || '购买失败' }
+        }
+        return { success: true, message: '购买成功！' }
+      })
+      .then(async (result) => {
+        setPurchaseResult(result)
+        if (result.success) {
+          await loadStoreData(userId)
+          setPurchasedIds(prev => [...prev, selectedCourse.id])
+        }
+      })
   }
 
   // 进入课程学习

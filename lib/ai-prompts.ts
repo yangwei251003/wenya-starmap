@@ -144,8 +144,28 @@ export function parseWritingReviewResponse(raw: string): AIWritingReview | null 
 function safeParseJSON<T>(raw: string): T | null {
   if (!raw) return null
   try {
-    return JSON.parse(raw) as T
+    return JSON.parse(stripMarkdownFences(raw)) as T
   } catch {
-    return null
+    try {
+      const extracted = extractJSONObject(raw)
+      return extracted ? (JSON.parse(extracted) as T) : null
+    } catch {
+      return null
+    }
   }
+}
+
+function stripMarkdownFences(raw: string): string {
+  return raw
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/```$/i, '')
+    .trim()
+}
+
+function extractJSONObject(raw: string): string | null {
+  const start = raw.indexOf('{')
+  const end = raw.lastIndexOf('}')
+  if (start === -1 || end === -1 || end <= start) return null
+  return raw.slice(start, end + 1)
 }
