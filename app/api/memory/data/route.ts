@@ -4,8 +4,6 @@ import { fsrs, State } from '@/utils/fsrs'
 
 export const dynamic = 'force-dynamic'
 
-export const dynamic = 'force-dynamic'
-
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
