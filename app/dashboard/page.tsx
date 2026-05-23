@@ -327,9 +327,9 @@ export default function DashboardPage() {
     },
     {
       title: '再萌芽',
-      description: '进入课程与练习，让理解长出新的分支。',
-      href: '/study-fsrs',
-      cta: '进入学习',
+      description: '进入背单词与复习，把每个词芽送回语言星图。',
+      href: '/vocab',
+      cta: '背单词',
       icon: BookOpen,
     },
     {
@@ -437,6 +437,12 @@ export default function DashboardPage() {
                       <Button className="gap-2">
                         <Mic className="h-4 w-4" />
                         发问
+                      </Button>
+                    </Link>
+                    <Link href="/vocab">
+                      <Button variant="star" className="gap-2">
+                        <BookOpen className="h-4 w-4" />
+                        背单词
                       </Button>
                     </Link>
                     <Button variant="cosmos" onClick={handleCheckin} disabled={!canCheckin} className="gap-2">
@@ -607,6 +613,12 @@ export default function DashboardPage() {
                     <Play className="h-4 w-4" />
                     开始学习
                   </Button>
+                  <Link href="/vocab">
+                    <Button variant="cosmos" className="gap-2">
+                      <BookOpen className="h-4 w-4" />
+                      背单词
+                    </Button>
+                  </Link>
                   <Button variant="cosmos" onClick={() => handleTabChange('ai')} className="gap-2">
                     <Wand2 className="h-4 w-4" />
                     看 NovaSprout
@@ -864,8 +876,8 @@ export default function DashboardPage() {
                       {(
                         {
                           loop: [
-                            { href: '/study-fsrs', title: '智能学习', desc: '把记忆调度做成日常路径', badge: '核心路径' },
-                            { href: '/quiz', title: '练习中心', desc: '继续巩固和回响', badge: '能力提升' },
+                            { href: '/vocab', title: '背单词', desc: '进入萌芽采集器翻卡记词', badge: '核心路径' },
+                            { href: '/study-fsrs', title: '智能复习', desc: '把记忆调度做成日常路径', badge: 'FSRS' },
                             { href: '/chat', title: 'AI 对话', desc: '实时双语陪练', badge: '高互动' },
                             { href: '/growth-starmap', title: '成长星图', desc: '学习成果可视化', badge: '成果展示' },
                           ],
