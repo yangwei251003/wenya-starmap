@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { env, hasSupabase } from '@/lib/env'
+import { isAdminIdentity } from '@/lib/admin-auth'
 import { supabaseAdmin } from '@/lib/supabase'
 
 function createAuthClient() {
@@ -69,6 +70,14 @@ export async function GET(request: NextRequest) {
           starCoins: profile?.star_coins ?? 0,
           learningProgress: profile?.learning_progress ?? 0,
           avatarUrl: profile?.avatar_url || null,
+          isAdmin: isAdminIdentity({
+            email: data.user.email,
+            level:
+              profile?.level ||
+              data.user.user_metadata?.level ||
+              'intermediate',
+            metadata: data.user.user_metadata as Record<string, unknown> | null,
+          }),
         },
       },
     })

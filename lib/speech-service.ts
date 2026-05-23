@@ -5,12 +5,14 @@ export interface SpeechOptions {
   rate?: number
   pitch?: number
   volume?: number
+  onEnergy?: (energy: number, frequencyData?: Uint8Array) => void
 }
 
 export class SpeechService {
   private synthesis: SpeechSynthesis | null = null
   private voices: SpeechSynthesisVoice[] = []
   private isSupported: boolean = false
+  private stopEnergyMonitor: (() => void) | null = null
 
   constructor() {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -66,6 +68,115 @@ export class SpeechService {
     return this.voices[0] || null
   }
 
+  private cleanupEnergyMonitor() {
+    if (this.stopEnergyMonitor) {
+      this.stopEnergyMonitor()
+      this.stopEnergyMonitor = null
+    }
+  }
+
+  private startSyntheticEnergyMonitor(
+    text: string,
+    rate: number,
+    onEnergy: (energy: number, frequencyData?: Uint8Array) => void
+  ) {
+    let frameId = 0
+    let stopped = false
+    let lastPulseAt = performance.now()
+    let pulseStrength = 0.42
+    const startedAt = performance.now()
+    const estimatedDuration = Math.max(1400, (text.length * 58) / Math.max(rate, 0.4))
+
+    const tick = () => {
+      if (stopped) return
+
+      const now = performance.now()
+      const elapsed = now - startedAt
+      const pulseAge = now - lastPulseAt
+      const wordPulse = Math.max(0, 1 - pulseAge / 420) * pulseStrength
+      const cadence = (Math.sin(elapsed / 118) + 1) / 2
+      const breath = (Math.sin(elapsed / 740) + 1) / 2
+      const tail = Math.max(0, 1 - elapsed / (estimatedDuration + 900))
+      const energy = Math.min(1, (0.12 + cadence * 0.2 + breath * 0.1 + wordPulse) * (0.56 + tail * 0.44))
+
+      onEnergy(energy)
+      frameId = window.requestAnimationFrame(tick)
+    }
+
+    frameId = window.requestAnimationFrame(tick)
+
+    return {
+      pulse(charIndex = 0) {
+        lastPulseAt = performance.now()
+        pulseStrength = 0.36 + (charIndex % 7) * 0.045
+      },
+      stop() {
+        stopped = true
+        if (frameId) {
+          window.cancelAnimationFrame(frameId)
+        }
+        onEnergy(0)
+      },
+    }
+  }
+
+  /**
+   * 使用 Web Audio API 监听真实音频元素的频率能量。
+   * 后续接入 SiliconFlow TTS 的音频流时，可以复用这个入口驱动 NovaSprout。
+   */
+  async monitorAudioElement(
+    audioElement: HTMLAudioElement,
+    onEnergy: (energy: number, frequencyData?: Uint8Array) => void
+  ): Promise<() => void> {
+    if (typeof window === 'undefined') {
+      return () => undefined
+    }
+
+    const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    if (!AudioContextClass) {
+      return () => onEnergy(0)
+    }
+
+    const audioContext = new AudioContextClass()
+    const analyser = audioContext.createAnalyser()
+    analyser.fftSize = 256
+    analyser.smoothingTimeConstant = 0.82
+
+    const source = audioContext.createMediaElementSource(audioElement)
+    source.connect(analyser)
+    analyser.connect(audioContext.destination)
+
+    const frequencyData = new Uint8Array(analyser.frequencyBinCount)
+    let frameId = 0
+    let stopped = false
+
+    const tick = () => {
+      if (stopped) return
+
+      analyser.getByteFrequencyData(frequencyData)
+      const average = frequencyData.reduce((sum, value) => sum + value, 0) / frequencyData.length
+      onEnergy(Math.min(1, average / 148), frequencyData)
+      frameId = window.requestAnimationFrame(tick)
+    }
+
+    if (audioContext.state === 'suspended') {
+      await audioContext.resume()
+    }
+
+    tick()
+
+    return () => {
+      stopped = true
+      if (frameId) {
+        window.cancelAnimationFrame(frameId)
+      }
+      source.disconnect()
+      analyser.disconnect()
+      void audioContext.close()
+      onEnergy(0)
+    }
+  }
+
   /**
    * 朗读文本
    * @param text - 要朗读的文本
@@ -81,8 +192,13 @@ export class SpeechService {
 
       // 停止当前播放
       this.synthesis.cancel()
+      this.cleanupEnergyMonitor()
 
       const utterance = new SpeechSynthesisUtterance(text)
+      const energyMonitor = options.onEnergy
+        ? this.startSyntheticEnergyMonitor(text, options.rate || 0.8, options.onEnergy)
+        : null
+      this.stopEnergyMonitor = energyMonitor ? energyMonitor.stop : null
       
       // 设置语音参数
       const voice = this.getBestEnglishVoice()
@@ -95,9 +211,19 @@ export class SpeechService {
       utterance.pitch = options.pitch || 1
       utterance.volume = options.volume || 1
 
+      utterance.onboundary = (event) => {
+        energyMonitor?.pulse(event.charIndex)
+      }
+
       // 事件处理
-      utterance.onend = () => resolve()
-      utterance.onerror = (event) => reject(new Error(`语音播放失败: ${event.error}`))
+      utterance.onend = () => {
+        this.cleanupEnergyMonitor()
+        resolve()
+      }
+      utterance.onerror = (event) => {
+        this.cleanupEnergyMonitor()
+        reject(new Error(`语音播放失败: ${event.error}`))
+      }
 
       this.synthesis.speak(utterance)
     })
@@ -107,6 +233,7 @@ export class SpeechService {
    * 停止语音播放
    */
   stop(): void {
+    this.cleanupEnergyMonitor()
     if (this.synthesis) {
       this.synthesis.cancel()
     }

@@ -39,6 +39,7 @@ export default function ChatPage() {
   const [isTyping, setIsTyping] = useState(false)
   const [speechEnabled, setSpeechEnabled] = useState(true)
   const [playingMessageId, setPlayingMessageId] = useState<string | null>(null)
+  const [voiceEnergy, setVoiceEnergy] = useState(0)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -109,6 +110,7 @@ export default function ChatPage() {
       // 如果正在播放这条消息，则停止
       speechService.stop()
       setPlayingMessageId(null)
+      setVoiceEnergy(0)
       return
     }
 
@@ -118,17 +120,23 @@ export default function ChatPage() {
     }
 
     setPlayingMessageId(messageId)
+    setVoiceEnergy(0.18)
 
     try {
       // 提取英文部分进行朗读（简单的处理方式）
       const englishText = extractEnglishText(content)
       if (englishText) {
-        await speechService.speak(englishText, { rate: 0.8, pitch: 1 })
+        await speechService.speak(englishText, {
+          rate: 0.8,
+          pitch: 1,
+          onEnergy: setVoiceEnergy,
+        })
       }
     } catch (error) {
       console.error('语音播放失败:', error)
     } finally {
       setPlayingMessageId(null)
+      setVoiceEnergy(0)
     }
   }
 
@@ -154,12 +162,24 @@ export default function ChatPage() {
   const handleClearChat = () => {
     speechService.stop()
     setPlayingMessageId(null)
+    setVoiceEnergy(0)
     setMessages([{
       id: '1',
       role: 'assistant',
       content: "Hello! I'm your AI English tutor. 你好！我是你的AI英语导师。How can I help you today? 今天我能帮你什么？",
       timestamp: new Date()
     }])
+  }
+
+  const handleToggleSpeech = () => {
+    const nextEnabled = !speechEnabled
+    setSpeechEnabled(nextEnabled)
+
+    if (!nextEnabled) {
+      speechService.stop()
+      setPlayingMessageId(null)
+      setVoiceEnergy(0)
+    }
   }
 
   return (
@@ -177,22 +197,23 @@ export default function ChatPage() {
             active={isTyping}
             speaking={playingMessageId !== null}
             muted={!speechEnabled}
+            energy={voiceEnergy}
           />
         </Card>
 
         {/* 语音控制 */}
         <div className="mb-4 flex justify-end">
           <button
-            onClick={() => setSpeechEnabled(!speechEnabled)}
+            onClick={handleToggleSpeech}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
               speechEnabled 
                 ? 'bg-sprout-400/20 text-sprout-400 hover:bg-sprout-400/30' 
                 : 'bg-cosmos-800/50 text-cosmos-500 hover:bg-cosmos-700/50'
             }`}
-            title={speechEnabled ? '关闭语音' : '开启语音'}
+            title={speechEnabled ? '收起星光回应' : '开启星光回应'}
           >
             {speechEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-            <span className="text-sm">{speechEnabled ? '语音开启' : '语音关闭'}</span>
+            <span className="text-sm">{speechEnabled ? '星光回应开启' : '静默指引'}</span>
           </button>
         </div>
         {/* 聊天区域 */}

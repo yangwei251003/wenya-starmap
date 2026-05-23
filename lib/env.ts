@@ -11,6 +11,7 @@ export const env = {
   supabaseUrl: trim(process.env.NEXT_PUBLIC_SUPABASE_URL),
   supabaseAnonKey: trim(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
   supabaseServiceRoleKey: trim(process.env.SUPABASE_SERVICE_ROLE_KEY),
+  adminEmails: trim(process.env.ADMIN_EMAILS),
   databaseUrl: trim(process.env.DATABASE_URL),
   openRouterApiKey: trim(process.env.OPENROUTER_API_KEY) || trim(process.env.GLM_API_KEY),
   openRouterModel:

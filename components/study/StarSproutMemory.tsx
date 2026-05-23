@@ -1,13 +1,29 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { motion, useReducedMotion } from 'framer-motion'
 import { useStudyQueue, useSubmitReview } from '@/hooks/useStudyQueue'
 import { Rating } from '@/utils/fsrs'
-import { 
-  X, Volume2, ChevronRight, Sparkles, 
-  Brain, Target, Flame, Award, ArrowLeft,
-  Keyboard, Eye, EyeOff, Battery, Zap
+import {
+  ArrowLeft,
+  Award,
+  Battery,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  Flame,
+  Keyboard,
+  Target,
+  Sparkles,
+  Volume2,
+  X,
+  Zap,
+  Brain,
+  Check,
 } from 'lucide-react'
+import { Card } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
+import { CompletionCelebration } from '@/components/ui/CompletionCelebration'
 import { getWordById } from '@/lib/words-data'
 
 interface StarSproutMemoryProps {
@@ -16,22 +32,130 @@ interface StarSproutMemoryProps {
   onBack: () => void
 }
 
+type ReviewTone = 'reset' | 'challenge' | 'grow' | 'bloom'
+
+const reviewMeta: Record<ReviewTone, { title: string; note: string; accent: string }> = {
+  reset: {
+    title: '重新发芽',
+    note: '这张卡先记到复习队列里，后面再追回来。',
+    accent: 'text-red-300',
+  },
+  challenge: {
+    title: '需要陪跑',
+    note: '理解还差一点点，先让它再亮一次。',
+    accent: 'text-orange-300',
+  },
+  grow: {
+    title: '继续生长',
+    note: '已经有点熟了，接下来让它稳定扎根。',
+    accent: 'text-[#00F5A0]',
+  },
+  bloom: {
+    title: '完全点亮',
+    note: '这颗词芽已经长稳了，可以放心前进。',
+    accent: 'text-sky-300',
+  },
+}
+
+function ratingToTone(rating: Rating): ReviewTone {
+  if (rating === Rating.Again) return 'reset'
+  if (rating === Rating.Hard) return 'challenge'
+  if (rating === Rating.Good) return 'grow'
+  return 'bloom'
+}
+
+function getLevelLabel(type: string | undefined) {
+  switch (type) {
+    case 'new':
+      return '新词'
+    case 'review':
+      return '复习'
+    default:
+      return '词芽'
+  }
+}
+
 export default function StarSproutMemory({ userId, onComplete, onBack }: StarSproutMemoryProps) {
+  const reducedMotion = useReducedMotion()
   const [currentCardIndex, setCurrentCardIndex] = useState(0)
   const [isFlipped, setIsFlipped] = useState(false)
   const [showHint, setShowHint] = useState(true)
   const [isShaking, setIsShaking] = useState(false)
   const [sessionStats, setSessionStats] = useState({ correct: 0, wrong: 0, total: 0 })
+  const [showCelebration, setShowCelebration] = useState(false)
 
-  // 使用 React Query hooks
   const { data: queueData, isLoading, error } = useStudyQueue(userId)
   const submitReviewMutation = useSubmitReview()
 
   const currentCard = queueData?.queue[currentCardIndex]
   const currentWord = currentCard ? getWordById(currentCard.word_id) : null
-  const progress = queueData ? ((currentCardIndex / queueData.queue.length) * 100) : 0
 
-  // 翻转卡片
+  const totalCount = queueData?.queue.length ?? 0
+  const progress = useMemo(() => {
+    if (!totalCount) return 0
+    return (currentCardIndex / totalCount) * 100
+  }, [currentCardIndex, totalCount])
+
+  const memoryStrength = currentCard ? Math.round((currentCard.stability / 10) * 100) : 0
+  const queueTone = currentCard?.type === 'new' ? 'new' : 'review'
+
+  const resetView = () => {
+    setCurrentCardIndex(0)
+    setIsFlipped(false)
+    setShowHint(true)
+    setIsShaking(false)
+    setSessionStats({ correct: 0, wrong: 0, total: 0 })
+    setShowCelebration(false)
+  }
+
+  const speakWord = () => {
+    if (!currentWord || typeof window === 'undefined') return
+    const utterance = new SpeechSynthesisUtterance(currentWord.word)
+    utterance.lang = 'en-US'
+    utterance.rate = 0.82
+    speechSynthesis.speak(utterance)
+  }
+
+  const advanceCard = () => {
+    if (currentCardIndex >= totalCount - 1) {
+      setShowCelebration(true)
+      setTimeout(() => onComplete(), 900)
+      return
+    }
+
+    setCurrentCardIndex((prev) => prev + 1)
+    setIsFlipped(false)
+    setShowHint(true)
+  }
+
+  const submitReview = async (rating: Rating) => {
+    if (!currentCard || !currentWord) return
+
+    try {
+      await submitReviewMutation.mutateAsync({
+        userId,
+        wordId: currentCard.word_id,
+        rating,
+        reviewTime: new Date().toISOString(),
+      })
+
+      setSessionStats((prev) => ({
+        total: prev.total + 1,
+        correct: rating >= Rating.Good ? prev.correct + 1 : prev.correct,
+        wrong: rating < Rating.Good ? prev.wrong + 1 : prev.wrong,
+      }))
+
+      if (rating < Rating.Good) {
+        setIsShaking(true)
+        window.setTimeout(() => setIsShaking(false), 420)
+      }
+
+      window.setTimeout(() => advanceCard(), 220)
+    } catch (submitError) {
+      console.error('Failed to submit review:', submitError)
+    }
+  }
+
   const flipCard = () => {
     if (!isFlipped) {
       setIsFlipped(true)
@@ -39,104 +163,36 @@ export default function StarSproutMemory({ userId, onComplete, onBack }: StarSpr
     }
   }
 
-  // 提交复习结果
-  const submitReview = async (rating: Rating) => {
-    if (!currentCard || !currentWord) return
-
-    try {
-      // 使用乐观更新的 mutation
-      await submitReviewMutation.mutateAsync({
-        userId,
-        wordId: currentCard.word_id,
-        rating,
-        reviewTime: new Date().toISOString()
-      })
-
-      // 更新会话统计
-      setSessionStats(prev => ({
-        ...prev,
-        total: prev.total + 1,
-        correct: rating >= Rating.Good ? prev.correct + 1 : prev.correct,
-        wrong: rating < Rating.Good ? prev.wrong + 1 : prev.wrong
-      }))
-
-      // 视觉反馈
-      if (rating < Rating.Good) {
-        setIsShaking(true)
-        setTimeout(() => setIsShaking(false), 500)
-      }
-
-      // 移动到下一张卡片或完成学习
-      if (currentCardIndex >= (queueData?.queue.length || 0) - 1) {
-        // 学习完成
-        setTimeout(() => {
-          onComplete()
-        }, 1000)
-      } else {
-        // 下一张卡片
-        setTimeout(() => {
-          setCurrentCardIndex(prev => prev + 1)
-          setIsFlipped(false)
-          setShowHint(true)
-        }, 300)
-      }
-
-    } catch (error) {
-      console.error('Failed to submit review:', error)
-      // 错误处理 - React Query 会自动回滚乐观更新
-    }
-  }
-
-  // 朗读单词
-  const speakWord = () => {
-    if (!currentWord || typeof window === 'undefined') return
-    const utterance = new SpeechSynthesisUtterance(currentWord.word)
-    utterance.lang = 'en-US'
-    utterance.rate = 0.8
-    speechSynthesis.speak(utterance)
-  }
-
-  // 键盘事件监听
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      switch (e.code) {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      switch (event.code) {
         case 'Space':
-          e.preventDefault()
+          event.preventDefault()
           flipCard()
           break
         case 'Enter':
-          e.preventDefault()
-          if (isFlipped) {
-            submitReview(Rating.Good)
-          }
+          event.preventDefault()
+          if (isFlipped) submitReview(Rating.Good)
           break
         case 'Digit1':
         case 'Numpad1':
-          e.preventDefault()
-          if (isFlipped) {
-            submitReview(Rating.Again)
-          }
+          event.preventDefault()
+          if (isFlipped) submitReview(Rating.Again)
           break
         case 'Digit2':
         case 'Numpad2':
-          e.preventDefault()
-          if (isFlipped) {
-            submitReview(Rating.Hard)
-          }
+          event.preventDefault()
+          if (isFlipped) submitReview(Rating.Hard)
           break
         case 'Digit3':
         case 'Numpad3':
-          e.preventDefault()
-          if (isFlipped) {
-            submitReview(Rating.Good)
-          }
+          event.preventDefault()
+          if (isFlipped) submitReview(Rating.Good)
           break
         case 'Digit4':
         case 'Numpad4':
-          e.preventDefault()
-          if (isFlipped) {
-            submitReview(Rating.Easy)
-          }
+          event.preventDefault()
+          if (isFlipped) submitReview(Rating.Easy)
           break
         case 'Escape':
           onBack()
@@ -146,351 +202,402 @@ export default function StarSproutMemory({ userId, onComplete, onBack }: StarSpr
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isFlipped, currentCard])
+  }, [isFlipped, currentCardIndex, currentWord])
 
-  // 加载状态
+  useEffect(() => {
+    if (!currentWord || !isFlipped) return
+    if (!showHint) return
+  }, [currentWord, isFlipped, showHint])
+
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-cosmos-900 via-cosmos-800 to-cosmos-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-sprout-400 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-cosmos-300">正在加载学习队列...</p>
-        </div>
+      <div className="min-h-screen bg-[#0B0F19] flex items-center justify-center p-4">
+        <Card className="w-full max-w-md p-8 text-center">
+          <div className="mx-auto mb-4 h-14 w-14 rounded-full border border-[#00F5A0]/35 border-t-transparent animate-spin" />
+          <p className="text-cosmos-300">正在连接词芽队列...</p>
+        </Card>
       </div>
     )
   }
 
-  // 错误状态
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-cosmos-900 via-cosmos-800 to-cosmos-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-            <X className="w-8 h-8 text-red-400" />
+      <div className="min-h-screen bg-[#0B0F19] flex items-center justify-center p-4">
+        <Card className="w-full max-w-md p-8 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-red-500/10 text-red-300">
+            <X className="h-8 w-8" />
           </div>
-          <p className="text-red-400 mb-4">加载失败</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-sprout-500 hover:bg-sprout-600 text-white rounded-lg transition-all"
-          >
-            重试
-          </button>
-        </div>
+          <p className="mb-4 text-red-300">加载失败</p>
+          <Button onClick={() => window.location.reload()}>重新发芽</Button>
+        </Card>
       </div>
     )
   }
 
-  // 没有卡片或学习完成
-  if (!queueData?.queue.length || currentCardIndex >= queueData.queue.length) {
+  if (!queueData?.queue.length || currentCardIndex >= queueData.queue.length || !currentWord) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-cosmos-900 via-cosmos-800 to-cosmos-900 flex items-center justify-center p-4">
-        <div className="text-center max-w-md">
-          <div className="w-24 h-24 bg-gradient-to-br from-sprout-400 to-star-400 rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce">
-            <Award className="w-12 h-12 text-white" />
+      <div className="min-h-screen bg-[#0B0F19] flex items-center justify-center p-4">
+        <Card className="w-full max-w-lg p-8 text-center">
+          <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-[#00F5A0]/10 text-[#00F5A0]">
+            <Award className="h-10 w-10" />
           </div>
-          <h1 className="text-4xl font-bold text-white mb-4">🎉 学习完成！</h1>
-          <p className="text-cosmos-300 mb-8">
-            今日学习目标已达成，继续保持！
-          </p>
-          <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
-            <div className="bg-cosmos-800/50 rounded-lg p-3">
-              <div className="text-sprout-400 font-bold text-lg">{sessionStats.correct}</div>
-              <div className="text-cosmos-400">正确</div>
+          <h1 className="text-3xl font-semibold text-white">本轮萌芽完成</h1>
+          <p className="mt-3 text-cosmos-300">今天已经把一批词芽送进星图，继续保持这个节奏。</p>
+
+          <div className="mt-6 grid grid-cols-3 gap-3">
+            <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+              <div className="text-xl font-semibold text-[#00F5A0]">{sessionStats.correct}</div>
+              <div className="mt-1 text-xs text-cosmos-400">点亮</div>
             </div>
-            <div className="bg-cosmos-800/50 rounded-lg p-3">
-              <div className="text-orange-400 font-bold text-lg">{sessionStats.wrong}</div>
-              <div className="text-cosmos-400">需复习</div>
+            <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+              <div className="text-xl font-semibold text-orange-300">{sessionStats.wrong}</div>
+              <div className="mt-1 text-xs text-cosmos-400">待返工</div>
+            </div>
+            <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+              <div className="text-xl font-semibold text-sky-300">{sessionStats.total}</div>
+              <div className="mt-1 text-xs text-cosmos-400">总复习</div>
             </div>
           </div>
-          <button
-            onClick={onComplete}
-            className="w-full py-3 bg-gradient-to-r from-sprout-500 to-star-500 hover:from-sprout-400 hover:to-star-400 text-white rounded-xl font-bold transition-all"
-          >
-            查看学习报告
-          </button>
-        </div>
+
+          <div className="mt-6 flex gap-3">
+            <Button variant="cosmos" onClick={onBack} className="flex-1">
+              返回
+            </Button>
+            <Button variant="star" onClick={() => {
+              resetView()
+              onComplete()
+            }} className="flex-1 gap-2">
+              <Sparkles className="h-4 w-4" />
+              查看结果
+            </Button>
+          </div>
+        </Card>
       </div>
     )
   }
+
+  const currentTone = reviewMeta[queueTone === 'new' ? 'grow' : 'challenge']
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-cosmos-900 via-cosmos-800 to-cosmos-900 flex flex-col">
-      {/* 顶部进度条 */}
-      <div className="fixed top-0 left-0 right-0 h-1 bg-cosmos-800 z-50">
-        <div 
-          className="h-full bg-gradient-to-r from-sprout-400 to-star-400 transition-all duration-500"
-          style={{ width: `${progress}%` }}
+    <div className="min-h-screen bg-[#0B0F19] text-white">
+      <div className="sticky top-0 z-50 h-1 bg-white/6">
+        <motion.div
+          className="h-full bg-gradient-to-r from-[#00F5A0] via-[#FDE68A] to-[#60A5FA]"
+          initial={false}
+          animate={{ width: `${progress}%` }}
+          transition={{ duration: 0.45, ease: 'easeOut' }}
         />
       </div>
 
-      {/* 顶部工具栏 */}
-      <div className="fixed top-4 left-0 right-0 px-4 z-40">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
+      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-5 lg:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <button
             onClick={onBack}
-            className="p-2 bg-cosmos-800/80 hover:bg-cosmos-700 rounded-lg text-cosmos-400 hover:text-white transition-all backdrop-blur-sm"
+            className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/5 px-4 py-2 text-sm text-cosmos-200 transition-all hover:border-[#00F5A0]/25 hover:text-white"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="h-4 w-4" />
+            返回星图
           </button>
 
-          <div className="flex items-center gap-4">
-            {/* 进度统计 */}
-            <div className="hidden sm:flex items-center gap-4 px-4 py-2 bg-cosmos-800/80 rounded-lg backdrop-blur-sm">
-              <div className="flex items-center gap-2">
-                <Target className="w-4 h-4 text-star-400" />
-                <span className="text-white text-sm">
-                  {currentCardIndex + 1}/{queueData?.queue.length}
-                </span>
-              </div>
-              <div className="w-px h-4 bg-cosmos-600" />
-              <div className="flex items-center gap-2">
-                <Battery className="w-4 h-4 text-sprout-400" />
-                <span className="text-white text-sm">
-                  {currentCard ? Math.round((currentCard.stability / 10) * 100) : 0}%
-                </span>
-              </div>
-            </div>
-
-            {/* 队列统计 */}
-            <div className="flex items-center gap-2 px-3 py-2 bg-cosmos-800/80 rounded-lg backdrop-blur-sm text-sm">
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 bg-orange-400 rounded-full" />
-                <span className="text-orange-400">{queueData?.stats.review}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 bg-cyan-400 rounded-full" />
-                <span className="text-cyan-400">{queueData?.stats.new}</span>
-              </div>
-            </div>
-
-            <button
-              onClick={() => setShowHint(!showHint)}
-              className="p-2 bg-cosmos-800/80 hover:bg-cosmos-700 rounded-lg text-cosmos-400 hover:text-white transition-all backdrop-blur-sm"
-            >
-              {showHint ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
-            </button>
+          <div className="flex flex-wrap items-center gap-2 rounded-full border border-white/8 bg-white/5 px-3 py-2 text-xs text-cosmos-300">
+            <span className="inline-flex items-center gap-1">
+              <Flame className="h-3.5 w-3.5 text-[#00F5A0]" />
+              {currentCardIndex + 1}/{totalCount}
+            </span>
+            <span className="text-white/20">•</span>
+            <span className="inline-flex items-center gap-1">
+              <Battery className="h-3.5 w-3.5 text-star-300" />
+              {memoryStrength}%
+            </span>
+            <span className="text-white/20">•</span>
+            <span className="inline-flex items-center gap-1">
+              <Sparkles className="h-3.5 w-3.5 text-sky-300" />
+              {currentCard?.type === 'new' ? '新词采集' : '回声复习'}
+            </span>
           </div>
         </div>
-      </div>
 
-      {/* 主要内容区 - 单词卡片 */}
-      <div className="flex-1 flex items-center justify-center p-4 pt-20">
-        {currentWord && (
-          <div 
-            className={`w-full max-w-2xl perspective-1000 ${isShaking ? 'animate-shake' : ''}`}
-            onClick={flipCard}
-          >
-            <div 
-              className={`relative w-full min-h-[400px] transition-transform duration-500 transform-style-3d cursor-pointer ${
+        <div className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
+          <Card className="p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.28em] text-cosmos-400">萌芽采集器</p>
+                <h1 className="mt-2 text-2xl font-semibold text-white">让词汇像种子一样，翻面、发光、长稳</h1>
+                <p className="mt-2 text-sm leading-6 text-cosmos-300">
+                  空格翻面，记住后给它一个更合适的成长等级。每一次判断，都会把这颗词芽推向下一段星图。
+                </p>
+              </div>
+
+              <div className={`rounded-2xl border border-white/8 bg-white/5 px-3 py-2 text-right ${currentTone.accent}`}>
+                <div className="text-sm font-medium">{currentTone.title}</div>
+                <div className="mt-1 max-w-[180px] text-xs leading-5 text-cosmos-400">{currentTone.note}</div>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              {[
+                { label: '点亮', value: sessionStats.correct, tone: 'text-[#00F5A0]' },
+                { label: '待返工', value: sessionStats.wrong, tone: 'text-orange-300' },
+                { label: '总复习', value: sessionStats.total, tone: 'text-sky-300' },
+              ].map((item) => (
+                <div key={item.label} className="rounded-2xl border border-white/8 bg-white/5 px-4 py-3">
+                  <div className="text-xs text-cosmos-400">{item.label}</div>
+                  <div className={`mt-1 text-xl font-semibold ${item.tone}`}>{item.value}</div>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card className="p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.28em] text-cosmos-400">队列状态</p>
+                <h2 className="mt-2 text-lg font-semibold text-white">当前词芽的生长信息</h2>
+              </div>
+              <button
+                onClick={() => setShowHint((prev) => !prev)}
+                className="rounded-full border border-white/8 bg-white/5 p-2 text-cosmos-300 transition-colors hover:text-white"
+                title={showHint ? '收起提示' : '展开提示'}
+              >
+                {showHint ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
+                <div className="flex items-center gap-2 text-sm text-cosmos-300">
+                  <Target className="h-4 w-4 text-[#00F5A0]" />
+                  当前类型：{getLevelLabel(currentCard?.type)}
+                </div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/8">
+                  <div className="h-full rounded-full bg-gradient-to-r from-[#00F5A0] to-star-300" style={{ width: `${memoryStrength}%` }} />
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/8 bg-white/5 p-4">
+                <div className="text-xs uppercase tracking-[0.24em] text-cosmos-400">快捷键</div>
+                <div className="mt-3 flex flex-wrap gap-2 text-xs text-cosmos-300">
+                  {['Space 翻面', 'Enter 良好', '1 忘记', '2 困难', '3 良好', '4 简单'].map((item) => (
+                    <span key={item} className="rounded-full border border-white/8 bg-black/20 px-3 py-1">
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        <div className={`mx-auto w-full max-w-4xl ${isShaking ? 'animate-shake' : ''}`}>
+          <div className="relative" onClick={flipCard}>
+            <div
+              className={`preserve-3d relative min-h-[440px] w-full cursor-pointer transition-transform duration-500 ${
                 isFlipped ? 'rotate-y-180' : ''
               }`}
               style={{ transformStyle: 'preserve-3d' }}
             >
-              {/* 卡片正面 */}
-              <div 
+              <motion.div
                 className="absolute inset-0 backface-hidden"
                 style={{ backfaceVisibility: 'hidden' }}
+                initial={false}
+                animate={reducedMotion ? undefined : { y: [0, -2, 0] }}
+                transition={{ duration: 3.4, repeat: Infinity, ease: 'easeInOut' }}
               >
-                <div className="h-full bg-cosmos-800/50 backdrop-blur-sm rounded-3xl border border-cosmos-700/50 p-8 flex flex-col items-center justify-center">
-                  {/* 卡片类型标记 */}
-                  <div className="absolute top-4 right-4 flex items-center gap-2">
-                    {currentCard?.type === 'new' && (
-                      <div className="px-3 py-1 bg-cyan-400/20 text-cyan-400 text-sm rounded-full flex items-center gap-1">
-                        <Sparkles className="w-4 h-4" />
-                        新词
-                      </div>
-                    )}
-                    {currentCard?.type === 'review' && (
-                      <div className="px-3 py-1 bg-orange-400/20 text-orange-400 text-sm rounded-full flex items-center gap-1">
-                        <Zap className="w-4 h-4" />
-                        复习
-                      </div>
-                    )}
+                <Card className="relative h-full overflow-hidden border-white/8 bg-white/5 p-8">
+                  <div className="absolute right-4 top-4 flex items-center gap-2">
+                    <span className={`rounded-full border px-3 py-1 text-xs ${currentCard?.type === 'new' ? 'border-[#00F5A0]/25 bg-[#00F5A0]/10 text-[#B9FFE4]' : 'border-star-300/20 bg-star-300/10 text-star-200'}`}>
+                      {getLevelLabel(currentCard?.type)}
+                    </span>
+                      <span className="rounded-full border border-white/8 bg-black/20 px-3 py-1 text-xs text-cosmos-300">
+                      {(currentWord?.tags?.length ?? 0) > 0 ? `${currentWord?.tags?.length ?? 0} 个标签` : '无标签'}
+                      </span>
                   </div>
 
-                  {/* 单词 */}
-                  <h1 className="text-6xl md:text-8xl font-bold text-white mb-4 text-center">
-                    {currentWord.word}
-                  </h1>
-
-                  {/* 音标和发音 */}
-                  <div className="flex items-center gap-3 mb-8">
-                    <span className="text-cosmos-400 text-xl">{currentWord.phonetic}</span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        speakWord()
-                      }}
-                      className="p-2 bg-cosmos-700 hover:bg-cosmos-600 rounded-full text-cosmos-300 hover:text-white transition-all"
-                    >
-                      <Volume2 className="w-5 h-5" />
-                    </button>
-                  </div>
-
-                  {/* 记忆强度指示器 */}
-                  {currentCard && (
-                    <div className="mb-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Battery className="w-4 h-4 text-sprout-400" />
-                        <span className="text-cosmos-400 text-sm">记忆强度</span>
-                      </div>
-                      <div className="w-32 h-2 bg-cosmos-700 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-gradient-to-r from-red-500 via-yellow-500 to-sprout-500 transition-all"
-                          style={{ width: `${Math.round((currentCard.stability / 10) * 100)}%` }}
-                        />
-                      </div>
+                  <div className="flex h-full flex-col items-center justify-center text-center">
+                    <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full border border-[#00F5A0]/20 bg-[#00F5A0]/10 text-[#00F5A0] shadow-[0_0_28px_rgba(0,245,160,0.14)]">
+                      <Sparkles className="h-9 w-9" />
                     </div>
-                  )}
 
-                  {/* 提示 */}
-                  {showHint && (
-                    <p className="text-cosmos-500 text-sm flex items-center gap-2 animate-pulse">
-                      <Keyboard className="w-4 h-4" />
-                      按空格键翻转卡片
-                    </p>
-                  )}
-                </div>
-              </div>
+                    <h2 className="text-5xl font-semibold tracking-tight text-white md:text-7xl">{currentWord?.word}</h2>
 
-              {/* 卡片背面 */}
-              <div 
+                    <div className="mt-4 flex flex-wrap items-center justify-center gap-3 text-cosmos-300">
+                      <span className="text-lg">{currentWord?.phonetic || '暂无音标'}</span>
+                      <button
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          speakWord()
+                        }}
+                        className="rounded-full border border-white/8 bg-white/5 p-2 text-cosmos-200 transition-colors hover:text-white"
+                        title="朗读单词"
+                      >
+                        <Volume2 className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    <div className="mt-8 flex items-center gap-2 text-sm text-cosmos-400">
+                      <Keyboard className="h-4 w-4" />
+                      {showHint ? '按空格翻面，或者直接点击词芽继续。' : '已收起提示，继续让它长出来。'}
+                    </div>
+                  </div>
+                </Card>
+              </motion.div>
+
+              <div
                 className="absolute inset-0 backface-hidden rotate-y-180"
                 style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
               >
-                <div className="h-full bg-cosmos-800/50 backdrop-blur-sm rounded-3xl border border-cosmos-700/50 p-8 flex flex-col">
-                  {/* 单词和音标 */}
-                  <div className="text-center mb-6">
-                    <h2 className="text-4xl font-bold text-white mb-2">{currentWord.word}</h2>
-                    <div className="flex items-center justify-center gap-3">
-                      <span className="text-cosmos-400">{currentWord.phonetic}</span>
+                <Card className="relative h-full border-white/8 bg-[#0F1624]/90 p-8">
+                  <div className="flex h-full flex-col">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.28em] text-cosmos-400">词芽解析</p>
+                        <h3 className="mt-2 text-3xl font-semibold text-white">{currentWord?.word}</h3>
+                        <p className="mt-2 text-cosmos-300">{currentWord?.phonetic || '暂无音标'}</p>
+                      </div>
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation()
+                        onClick={(event) => {
+                          event.stopPropagation()
                           speakWord()
                         }}
-                        className="p-1.5 bg-cosmos-700 hover:bg-cosmos-600 rounded-full text-cosmos-300 hover:text-white transition-all"
+                        className="rounded-full border border-white/8 bg-white/5 p-2 text-cosmos-200 transition-colors hover:text-white"
                       >
-                        <Volume2 className="w-4 h-4" />
+                        <Volume2 className="h-4 w-4" />
                       </button>
                     </div>
-                  </div>
 
-                  {/* 释义 */}
-                  <div className="text-center mb-6">
-                    <p className="text-2xl text-sprout-400 font-medium">{currentWord.meaning}</p>
-                  </div>
+                    <div className="mt-6 rounded-2xl border border-white/8 bg-white/5 p-5">
+                      <p className="text-2xl font-medium text-[#00F5A0]">{currentWord?.meaning}</p>
+                      {(currentWord?.tags?.length ?? 0) > 0 && (
+                        <p className="mt-2 text-sm text-cosmos-400">标签：{currentWord?.tags.slice(0, 3).join(' · ')}</p>
+                      )}
+                    </div>
 
-                  {/* 例句 */}
-                  <div className="mb-4 p-4 bg-cosmos-700/30 rounded-xl">
-                    <p className="text-white mb-2 italic">"{currentWord.example}"</p>
-                    <p className="text-cosmos-400 text-sm">{currentWord.exampleCn}</p>
-                  </div>
+                    <div className="mt-5 rounded-2xl border border-white/8 bg-black/20 p-5">
+                      <p className="text-sm leading-7 text-cosmos-200 italic">"{currentWord?.example}"</p>
+                      {currentWord?.exampleCn && (
+                        <p className="mt-2 text-sm leading-6 text-cosmos-400">{currentWord.exampleCn}</p>
+                      )}
+                    </div>
 
-                  {/* 标签 */}
-                  <div className="flex flex-wrap gap-2 justify-center mt-auto">
-                    {currentWord.tags.map(tag => (
-                      <span key={tag} className="px-3 py-1 bg-cosmos-700 text-cosmos-300 text-sm rounded-full">
-                        {tag}
-                      </span>
-                    ))}
+                    <div className="mt-5 flex flex-wrap gap-2">
+                      {(currentWord?.tags ?? []).map((tag) => (
+                        <span key={tag} className="rounded-full border border-white/8 bg-white/5 px-3 py-1 text-xs text-cosmos-300">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+
+                    <div className="mt-auto pt-6">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Button
+                          variant="cosmos"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            submitReview(Rating.Again)
+                          }}
+                          disabled={submitReviewMutation.isPending}
+                          className="gap-2"
+                        >
+                          <X className="h-4 w-4 text-red-300" />
+                          忘记了
+                        </Button>
+                        <Button
+                          variant="cosmos"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            submitReview(Rating.Hard)
+                          }}
+                          disabled={submitReviewMutation.isPending}
+                          className="gap-2"
+                        >
+                          <Brain className="h-4 w-4 text-orange-300" />
+                          有点难
+                        </Button>
+                        <Button
+                          variant="sprout"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            submitReview(Rating.Good)
+                          }}
+                          disabled={submitReviewMutation.isPending}
+                          className="gap-2"
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                          记住了
+                        </Button>
+                        <Button
+                          variant="star"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            submitReview(Rating.Easy)
+                          }}
+                          disabled={submitReviewMutation.isPending}
+                          className="gap-2"
+                        >
+                          <Check className="h-4 w-4" />
+                          很稳
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                </Card>
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
 
-      {/* 底部操作区 */}
-      {isFlipped && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 pb-6 bg-gradient-to-t from-cosmos-900 via-cosmos-900/95 to-transparent">
-          <div className="max-w-2xl mx-auto">
-            {/* 键盘提示 */}
-            <div className="text-center mb-3">
-              <p className="text-cosmos-500 text-xs flex items-center justify-center gap-2 flex-wrap">
-                <span className="inline-flex items-center">
-                  <kbd className="px-2 py-0.5 bg-cosmos-700 rounded text-cosmos-300 text-xs mr-1">1</kbd>
-                  忘记了
-                </span>
-                <span className="text-cosmos-600 mx-1">|</span>
-                <span className="inline-flex items-center">
-                  <kbd className="px-2 py-0.5 bg-cosmos-700 rounded text-cosmos-300 text-xs mr-1">2</kbd>
-                  困难
-                </span>
-                <span className="text-cosmos-600 mx-1">|</span>
-                <span className="inline-flex items-center">
-                  <kbd className="px-2 py-0.5 bg-cosmos-700 rounded text-cosmos-300 text-xs mr-1">3</kbd>
-                  良好
-                </span>
-                <span className="text-cosmos-600 mx-1">|</span>
-                <span className="inline-flex items-center">
-                  <kbd className="px-2 py-0.5 bg-cosmos-700 rounded text-cosmos-300 text-xs mr-1">4</kbd>
-                  简单
-                </span>
-              </p>
-            </div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm text-cosmos-400">
+            <Sparkles className="h-4 w-4 text-[#00F5A0]" />
+            <span>空格翻面，判断后词芽会继续向星图生长。</span>
+          </div>
 
-            {/* 操作按钮 - FSRS 4个评级 */}
-            <div className="grid grid-cols-4 gap-3">
-              <button
-                onClick={() => submitReview(Rating.Again)}
-                disabled={submitReviewMutation.isPending}
-                className="py-4 bg-red-500/20 hover:bg-red-500/30 border border-red-400/30 text-red-400 rounded-xl transition-all flex flex-col items-center justify-center gap-1 disabled:opacity-50"
-              >
-                <X className="w-6 h-6" />
-                <span className="text-sm font-medium">忘记了</span>
-              </button>
-              <button
-                onClick={() => submitReview(Rating.Hard)}
-                disabled={submitReviewMutation.isPending}
-                className="py-4 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-400/30 text-orange-400 rounded-xl transition-all flex flex-col items-center justify-center gap-1 disabled:opacity-50"
-              >
-                <Brain className="w-6 h-6" />
-                <span className="text-sm font-medium">困难</span>
-              </button>
-              <button
-                onClick={() => submitReview(Rating.Good)}
-                disabled={submitReviewMutation.isPending}
-                className="py-4 bg-sprout-500/20 hover:bg-sprout-500/30 border border-sprout-400/30 text-sprout-400 rounded-xl transition-all flex flex-col items-center justify-center gap-1 disabled:opacity-50"
-              >
-                <ChevronRight className="w-6 h-6" />
-                <span className="text-sm font-medium">良好</span>
-              </button>
-              <button
-                onClick={() => submitReview(Rating.Easy)}
-                disabled={submitReviewMutation.isPending}
-                className="py-4 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/30 text-blue-400 rounded-xl transition-all flex flex-col items-center justify-center gap-1 disabled:opacity-50"
-              >
-                <Sparkles className="w-6 h-6" />
-                <span className="text-sm font-medium">简单</span>
-              </button>
-            </div>
+          <div className="flex gap-3">
+            <Button variant="cosmos" onClick={resetView} className="gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              重置队列
+            </Button>
+            <Button variant="star" onClick={() => setIsFlipped((prev) => !prev)} className="gap-2">
+              <Sparkles className="h-4 w-4" />
+              {isFlipped ? '收起答案' : '翻开词芽'}
+            </Button>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* 自定义样式 */}
+      <CompletionCelebration
+        isVisible={showCelebration}
+        onClose={() => setShowCelebration(false)}
+        onContinue={() => {
+          setShowCelebration(false)
+          onComplete()
+        }}
+        onGoHome={onBack}
+        title="词芽已经长稳了"
+        subtitle="这一轮萌芽采集完成，星图又多了一片可用的光"
+        correctCount={sessionStats.correct}
+        totalCount={totalCount}
+        timeSpent={0}
+        xpEarned={sessionStats.correct * 10}
+      />
+
       <style jsx>{`
-        .perspective-1000 {
-          perspective: 1000px;
-        }
-        .transform-style-3d {
-          transform-style: preserve-3d;
+        .rotate-y-180 {
+          transform: rotateY(180deg);
         }
         .backface-hidden {
           backface-visibility: hidden;
         }
-        .rotate-y-180 {
-          transform: rotateY(180deg);
+        .preserve-3d {
+          transform-style: preserve-3d;
         }
         @keyframes shake {
           0%, 100% { transform: translateX(0); }
-          10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
-          20%, 40%, 60%, 80% { transform: translateX(5px); }
+          20%, 60% { transform: translateX(-4px); }
+          40%, 80% { transform: translateX(4px); }
         }
         .animate-shake {
-          animation: shake 0.5s ease-in-out;
+          animation: shake 0.45s ease-in-out;
         }
       `}</style>
     </div>

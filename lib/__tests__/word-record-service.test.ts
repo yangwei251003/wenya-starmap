@@ -8,9 +8,9 @@ import * as fc from 'fast-check'
 import { WordRecordService } from '../word-record-service'
 import { WordRecord, MemoryStudySession, WordRecordStatus } from '@/types'
 
-// Mock SecurityManager for testing
+// Mock SecureStorage for testing
 jest.mock('../security', () => ({
-  SecurityManager: {
+  SecureStorage: {
     getItem: jest.fn(),
     setItem: jest.fn(),
     removeItem: jest.fn()
@@ -25,11 +25,11 @@ describe('WordRecordService Property-Based Tests', () => {
     service = new WordRecordService()
     mockStorage = new Map()
     
-    // Mock SecurityManager methods
-    const { SecurityManager } = require('../security')
-    SecurityManager.getItem.mockImplementation((key: string) => mockStorage.get(key) || null)
-    SecurityManager.setItem.mockImplementation((key: string, value: any) => mockStorage.set(key, value))
-    SecurityManager.removeItem.mockImplementation((key: string) => mockStorage.delete(key))
+    // Mock SecureStorage methods
+    const { SecureStorage } = require('../security')
+    SecureStorage.getItem.mockImplementation((key: string) => mockStorage.get(key) || null)
+    SecureStorage.setItem.mockImplementation((key: string, value: any) => mockStorage.set(key, value))
+    SecureStorage.removeItem.mockImplementation((key: string) => mockStorage.delete(key))
   })
 
   afterEach(() => {
