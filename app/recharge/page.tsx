@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Card } from '@/components/ui/Card'
@@ -13,7 +13,7 @@ import {
 import { RECHARGE_PACKAGES, STAR_COIN_RULES } from '@/lib/star-coin-service'
 import { RechargePackage, StarCoinTransaction } from '@/types'
 
-export default function RechargePage() {
+function RechargeContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [mounted, setMounted] = useState(false)
@@ -395,5 +395,17 @@ export default function RechargePage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function RechargePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-16 h-16 border-4 border-star-400 border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <RechargeContent />
+    </Suspense>
   )
 }
