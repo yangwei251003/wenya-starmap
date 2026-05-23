@@ -6,7 +6,12 @@ import { performanceMonitor } from './performance-monitor'
 import { callOpenRouterAPI, type OpenRouterMessage } from './openrouter'
 
 // API基础URL配置
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api'
+// 浏览器端默认走同域 /api，避免线上构建把 localhost 烘进前端包导致注册/登录失败。
+const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL?.trim()
+const API_BASE_URL =
+  configuredApiUrl && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/api\/?$/i.test(configuredApiUrl)
+    ? configuredApiUrl.replace(/\/$/, '')
+    : '/api'
 
 // API超时配置（毫秒）
 const API_TIMEOUT = 30000 // 30秒
@@ -105,6 +110,13 @@ export async function apiRequest<T = any>(
     }
 
     logger.info(`API Success: ${method} ${endpoint}`, { duration: `${duration.toFixed(2)}ms` })
+
+    if (data && typeof data === 'object' && 'success' in data) {
+      return {
+        ...data,
+        timestamp: data.timestamp || new Date().toISOString(),
+      } as APIResponse<T>
+    }
 
     return {
       success: true,
