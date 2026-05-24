@@ -3,6 +3,13 @@ import { supabaseAdmin } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
+function isMissingTable(error: { message?: string; code?: string } | null | undefined) {
+  return (
+    error?.code === 'PGRST205' ||
+    error?.message?.includes('Could not find the table')
+  )
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -21,6 +28,14 @@ export async function GET(request: NextRequest) {
       .select('*')
       .eq('user_id', userId)
       .order('purchase_date', { ascending: false })
+
+    if (isMissingTable(error)) {
+      return NextResponse.json({
+        success: true,
+        data: [],
+        meta: { degraded: true, reason: 'schema_not_ready' },
+      })
+    }
 
     if (error) {
       return NextResponse.json({ error: error.message || '获取已购课程失败' }, { status: 500 })

@@ -4,6 +4,26 @@ import { getCourseById } from '@/lib/store-courses-data'
 
 export const dynamic = 'force-dynamic'
 
+function isMissingTable(error: { message?: string; code?: string } | null | undefined) {
+  return (
+    error?.code === 'PGRST205' ||
+    error?.message?.includes('Could not find the table')
+  )
+}
+
+function simulatedPurchase(courseId: string, balance = 200) {
+  return NextResponse.json({
+    success: true,
+    data: {
+      courseId,
+      balance,
+      simulated: true,
+      degraded: true,
+    },
+    meta: { degraded: true, reason: 'schema_not_ready' },
+  })
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { userId, courseId } = await request.json()
@@ -27,16 +47,24 @@ export async function POST(request: NextRequest) {
       .eq('id', userId)
       .maybeSingle()
 
+    if (isMissingTable(profileError)) {
+      return simulatedPurchase(courseId)
+    }
+
     if (profileError || !profile) {
       return NextResponse.json({ error: '用户资料不存在' }, { status: 404 })
     }
 
-    const { data: existingCourse } = await supabaseAdmin
+    const { data: existingCourse, error: existingCourseError } = await supabaseAdmin
       .from('purchased_courses')
       .select('*')
       .eq('user_id', userId)
       .eq('course_id', courseId)
       .maybeSingle()
+
+    if (isMissingTable(existingCourseError)) {
+      return simulatedPurchase(courseId, profile.star_coins ?? 200)
+    }
 
     if (existingCourse) {
       return NextResponse.json({ error: '您已经购买过这门课程了' }, { status: 409 })
@@ -64,6 +92,10 @@ export async function POST(request: NextRequest) {
         },
         updated_at: now,
       }, { onConflict: 'user_id,course_id' })
+
+    if (isMissingTable(purchaseError)) {
+      return simulatedPurchase(courseId, nextBalance)
+    }
 
     if (purchaseError) {
       return NextResponse.json({ error: purchaseError.message || '购买失败' }, { status: 500 })

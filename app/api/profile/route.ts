@@ -3,6 +3,26 @@ import { createClient } from '@supabase/supabase-js'
 import { env } from '@/lib/env'
 import { supabaseAdmin } from '@/lib/supabase'
 
+function isMissingTable(error: { message?: string; code?: string } | null | undefined) {
+  return (
+    error?.code === 'PGRST205' ||
+    error?.message?.includes('Could not find the table')
+  )
+}
+
+function fallbackProfile(userId: string) {
+  return {
+    id: userId,
+    username: '星图体验用户',
+    email: 'demo@wenya-starmap.local',
+    level: 'intermediate',
+    star_coins: 200,
+    learning_progress: 0,
+    language_star_map: {},
+    demo: true,
+  }
+}
+
 function createAuthClient() {
   return createClient(
     env.supabaseUrl || 'https://your-project.supabase.co',
@@ -45,6 +65,14 @@ export async function GET(request: NextRequest) {
       .eq('id', userId)
       .maybeSingle()
 
+    if (isMissingTable(error)) {
+      return NextResponse.json({
+        success: true,
+        data: fallbackProfile(userId),
+        meta: { degraded: true, reason: 'schema_not_ready' },
+      })
+    }
+
     if (error) {
       return NextResponse.json(
         { error: { message: error.message || '获取资料失败' } },
@@ -54,7 +82,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: data || null,
+      data: data || fallbackProfile(userId),
     })
   } catch (error) {
     return NextResponse.json(
@@ -98,6 +126,14 @@ export async function PATCH(request: NextRequest) {
       })
       .select('*')
       .single()
+
+    if (isMissingTable(error)) {
+      return NextResponse.json({
+        success: true,
+        data: fallbackProfile(userId),
+        meta: { degraded: true, reason: 'schema_not_ready' },
+      })
+    }
 
     if (error) {
       return NextResponse.json(
