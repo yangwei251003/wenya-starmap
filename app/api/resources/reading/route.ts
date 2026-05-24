@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { parseRss } from '@/lib/rss'
+import { supabaseAdmin } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,6 +22,23 @@ export async function GET(request: NextRequest) {
     const topic = searchParams.get('topic') || 'learning'
     const feedUrl = FEEDS[topic] || FEEDS.learning
     const candidates = Array.from(new Set([feedUrl, ...FALLBACK_FEEDS]))
+    const cacheKey = `reading:${topic}`
+
+    if (supabaseAdmin) {
+      const { data: cached } = await supabaseAdmin
+        .from('resource_cache')
+        .select('payload, expires_at')
+        .eq('cache_key', cacheKey)
+        .maybeSingle()
+
+      if (cached?.payload && (!cached.expires_at || new Date(cached.expires_at) > new Date())) {
+        return NextResponse.json({
+          success: true,
+          data: cached.payload,
+          cached: true,
+        })
+      }
+    }
 
     for (const candidate of candidates) {
       const response = await fetch(candidate, {
@@ -39,13 +57,26 @@ export async function GET(request: NextRequest) {
       const items = parseRss(xml).slice(0, 8)
 
       if (items.length > 0) {
+        const payload = {
+          source: candidate,
+          topic,
+          items,
+        }
+
+        if (supabaseAdmin) {
+          await supabaseAdmin.from('resource_cache').upsert({
+            cache_key: cacheKey,
+            resource_type: 'reading',
+            source: candidate,
+            payload,
+            expires_at: new Date(Date.now() + 1000 * 60 * 30).toISOString(),
+          }, { onConflict: 'cache_key' })
+        }
+
         return NextResponse.json({
           success: true,
-          data: {
-            source: candidate,
-            topic,
-            items,
-          },
+          data: payload,
+          cached: false,
         })
       }
     }

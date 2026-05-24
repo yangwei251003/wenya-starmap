@@ -17,7 +17,14 @@ const mockWordRecordService = {
 }
 
 jest.mock('../word-record-service', () => ({
-  wordRecordService: mockWordRecordService
+  wordRecordService: {
+    updateAllRetrievability: (...args: unknown[]) =>
+      mockWordRecordService.updateAllRetrievability(...args),
+    getWordRecords: (...args: unknown[]) =>
+      mockWordRecordService.getWordRecords(...args),
+    getStudySessions: (...args: unknown[]) =>
+      mockWordRecordService.getStudySessions(...args)
+  }
 }))
 
 describe('Memory Calculation Service - Property-Based Tests', () => {
@@ -34,9 +41,9 @@ describe('Memory Calculation Service - Property-Based Tests', () => {
     userId: fc.string(),
     wordId: fc.string(),
     status: fc.constantFrom('new', 'learning', 'review', 'mastered') as fc.Arbitrary<WordRecordStatus>,
-    stability: fc.float({ min: 0.1, max: 100 }),
-    difficulty: fc.float({ min: 0, max: 1 }),
-    retrievability: fc.float({ min: 0, max: 1 }),
+    stability: fc.float({ min: Math.fround(0.1), max: Math.fround(100), noNaN: true }),
+    difficulty: fc.float({ min: Math.fround(0), max: Math.fround(1), noNaN: true }),
+    retrievability: fc.float({ min: Math.fround(0), max: Math.fround(1), noNaN: true }),
     nextReviewDate: fc.date(),
     lastReviewDate: fc.date(),
     createdAt: fc.date(),

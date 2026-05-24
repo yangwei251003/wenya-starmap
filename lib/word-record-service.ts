@@ -21,7 +21,9 @@ export class WordRecordService {
     
     try {
       const records = SecureStorage.getItem<WordRecord[]>(`${this.storageKey}_${userId}`)
-      return records || []
+      if (!records) return []
+
+      return records.map(record => this.hydrateWordRecord(record))
     } catch (error) {
       console.error('Failed to get word records:', error)
       return []
@@ -211,8 +213,9 @@ export class WordRecordService {
       cutoffDate.setDate(cutoffDate.getDate() - days)
       
       return sessions
-        .filter(session => new Date(session.startTime) >= cutoffDate)
-        .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
+        .map(session => this.hydrateStudySession(session))
+        .filter(session => session.endTime >= cutoffDate)
+        .sort((a, b) => b.endTime.getTime() - a.endTime.getTime())
     } catch (error) {
       console.error('Failed to get study sessions:', error)
       return []
@@ -303,6 +306,29 @@ export class WordRecordService {
     if (typeof window === 'undefined') return 'desktop'
     
     return window.innerWidth <= 768 ? 'mobile' : 'desktop'
+  }
+
+  /**
+   * Restore Date fields after loading from storage
+   */
+  private hydrateWordRecord(record: WordRecord): WordRecord {
+    return {
+      ...record,
+      nextReviewDate: new Date(record.nextReviewDate),
+      lastReviewDate: new Date(record.lastReviewDate),
+      createdAt: new Date(record.createdAt)
+    }
+  }
+
+  /**
+   * Restore Date fields in study session payloads
+   */
+  private hydrateStudySession(session: MemoryStudySession): MemoryStudySession {
+    return {
+      ...session,
+      startTime: new Date(session.startTime),
+      endTime: new Date(session.endTime)
+    }
   }
 }
 

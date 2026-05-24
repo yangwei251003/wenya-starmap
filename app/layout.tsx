@@ -9,6 +9,10 @@ const fontClass = 'font-sans'
 export const metadata: Metadata = {
   title: '问芽星图 - WenYa StarMap',
   description: 'AI驱动的智慧英语学习平台，以嫩芽成长和璀璨繁星为主题',
+  icons: {
+    icon: '/favicon.ico',
+    shortcut: '/favicon.ico',
+  },
 }
 
 export default function RootLayout({

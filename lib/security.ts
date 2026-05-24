@@ -60,7 +60,8 @@ export class DataMasking {
    */
   static maskPhone(phone: string): string {
     if (!phone || phone.length < 7) return '***'
-    return phone.substring(0, 3) + '****' + phone.substring(phone.length - 4)
+    const tailLength = phone.length >= 11 ? 4 : 3
+    return phone.substring(0, 3) + '****' + phone.substring(phone.length - tailLength)
   }
 
   /**
@@ -237,6 +238,8 @@ export class SecureStorage {
    * 安全存储数据
    */
   static setItem(key: string, value: any): void {
+    if (typeof localStorage === 'undefined') return
+
     try {
       const serialized = JSON.stringify(value)
       const encrypted = this.encrypt(serialized)
@@ -250,6 +253,8 @@ export class SecureStorage {
    * 安全读取数据
    */
   static getItem<T = any>(key: string): T | null {
+    if (typeof localStorage === 'undefined') return null
+
     try {
       const encrypted = localStorage.getItem(key)
       if (!encrypted) return null
@@ -266,6 +271,8 @@ export class SecureStorage {
    * 删除数据
    */
   static removeItem(key: string): void {
+    if (typeof localStorage === 'undefined') return
+
     try {
       localStorage.removeItem(key)
     } catch (error) {
@@ -277,6 +284,8 @@ export class SecureStorage {
    * 清空所有数据
    */
   static clear(): void {
+    if (typeof localStorage === 'undefined') return
+
     try {
       localStorage.clear()
     } catch (error) {

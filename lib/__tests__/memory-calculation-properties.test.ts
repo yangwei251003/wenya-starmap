@@ -75,7 +75,7 @@ describe('Memory Calculation Service - All Properties', () => {
           status: fc.sample(fc.constantFrom('new', 'learning', 'review') as fc.Arbitrary<WordRecordStatus>, 1)[0],
           stability: Math.max(0.1, record.stability),
           lastReviewDate: new Date(Date.now() - elapsedDays * 24 * 60 * 60 * 1000)
-        }))
+        }));
         
         // Calculate initial retrievability (at time 0)
         const initialRetrievability = learningRecords.map(record => {
@@ -117,7 +117,7 @@ describe('Memory Calculation Service - All Properties', () => {
           ...record,
           status: 'learning' as WordRecordStatus, // Force to learning status
           stability: Math.max(0.1, record.stability)
-        }))
+        }));
         
         // Calculate initial battery (simulate before review)
         (wordRecordService.getWordRecords as jest.Mock).mockReturnValue(learningRecords);
@@ -128,7 +128,7 @@ describe('Memory Calculation Service - All Properties', () => {
           })
         })
         
-        const batteryBefore = service.calculateBattery(userId)
+        const batteryBefore = service.calculateBattery(userId);
         
         // Simulate review session - improve retrievability
         (wordRecordService.updateAllRetrievability as jest.Mock).mockImplementation(() => {
@@ -137,7 +137,7 @@ describe('Memory Calculation Service - All Properties', () => {
           })
         })
         
-        const batteryAfter = service.calculateBattery(userId)
+        const batteryAfter = service.calculateBattery(userId);
         
         // Property: Battery after review should be >= battery before (with small tolerance)
         expect(batteryAfter).toBeGreaterThanOrEqual(batteryBefore - 0.1)

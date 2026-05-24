@@ -189,7 +189,7 @@ export class Logger {
     }
 
     // 限制日志数量，避免内存泄漏
-    if (this.logs.length > 1000) {
+    if (this.logs.length > 500) {
       this.logs = this.logs.slice(-500)
     }
   }

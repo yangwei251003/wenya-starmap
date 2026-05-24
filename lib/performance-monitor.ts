@@ -61,7 +61,7 @@ export class PerformanceMonitor {
       return 0
     }
 
-    const duration = performance.now() - startTime
+    const duration = Math.ceil(performance.now() - startTime)
     this.timers.delete(name)
 
     const metric: PerformanceMetric = {
@@ -79,7 +79,7 @@ export class PerformanceMonitor {
     }
 
     // 限制指标数量
-    if (this.metrics.length > 500) {
+    if (this.metrics.length > 250) {
       this.metrics = this.metrics.slice(-250)
     }
 
@@ -129,7 +129,7 @@ export class PerformanceMonitor {
     }
 
     // 限制指标数量
-    if (this.apiMetrics.length > 500) {
+    if (this.apiMetrics.length > 250) {
       this.apiMetrics = this.apiMetrics.slice(-250)
     }
   }

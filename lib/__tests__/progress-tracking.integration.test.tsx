@@ -15,10 +15,41 @@ import { StarAchievement } from '@/types'
 // Mock Framer Motion
 jest.mock('framer-motion', () => ({
   motion: {
-    div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-    g: ({ children, ...props }: any) => <g {...props}>{children}</g>
+    div: ({ children, animate, initial, transition, whileHover, whileTap, variants, ...props }: any) => (
+      <div {...props}>{children}</div>
+    ),
+    button: React.forwardRef(
+      (
+        {
+          children,
+          animate,
+          initial,
+          transition,
+          whileHover,
+          whileTap,
+          variants,
+          whileInView,
+          viewport,
+          ...props
+        }: any,
+        ref: React.ForwardedRef<HTMLButtonElement>
+      ) => (
+        <button ref={ref} {...props}>
+          {children}
+        </button>
+      )
+    ),
+    g: ({ children, animate, initial, transition, whileHover, whileTap, variants, ...props }: any) => (
+      <g {...props}>{children}</g>
+    )
   },
-  AnimatePresence: ({ children }: any) => <>{children}</>
+  AnimatePresence: ({ children }: any) => <>{children}</>,
+  useReducedMotion: () => false,
+  useMotionValue: (initial: number) => ({
+    get: () => initial,
+    set: jest.fn()
+  }),
+  useSpring: (value: unknown) => value,
 }))
 
 describe('Progress Tracking Integration', () => {
@@ -76,7 +107,7 @@ describe('Progress Tracking Integration', () => {
 
       render(<ProgressChart trends={mockTrends} type="studyTime" />)
 
-      expect(screen.getByText('学习时长趋势')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: '学习时长趋势' })).toBeInTheDocument()
     })
 
     it('should render different chart types', () => {
@@ -85,13 +116,13 @@ describe('Progress Tracking Integration', () => {
       ]
 
       const { rerender } = render(<ProgressChart trends={mockTrends} type="studyTime" />)
-      expect(screen.getByText('学习时长趋势')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: '学习时长趋势' })).toBeInTheDocument()
 
       rerender(<ProgressChart trends={mockTrends} type="lessons" />)
-      expect(screen.getByText('完成课程趋势')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: '完成课程趋势' })).toBeInTheDocument()
 
       rerender(<ProgressChart trends={mockTrends} type="score" />)
-      expect(screen.getByText('平均分数趋势')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: '平均分数趋势' })).toBeInTheDocument()
     })
   })
 

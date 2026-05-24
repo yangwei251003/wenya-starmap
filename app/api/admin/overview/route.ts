@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { env, hasOpenRouter, hasSupabase, hasSupabaseServiceRole } from '@/lib/env'
+import { env, hasOpenAIRealtime, hasOpenRouter, hasSupabase, hasSupabaseServiceRole } from '@/lib/env'
 import { isAdminIdentity } from '@/lib/admin-auth'
 import { supabaseAdmin } from '@/lib/supabase'
 
@@ -124,6 +124,8 @@ export async function GET(request: NextRequest) {
       subscriptionCount,
       studyLogCount,
       reviewLogCount,
+      voiceSessionCount,
+      resourceCacheCount,
       recentUsers,
       recentTransactions,
       recentOrders,
@@ -131,6 +133,8 @@ export async function GET(request: NextRequest) {
       recentSubscriptions,
       recentStudyLogs,
       recentReviewLogs,
+      recentVoiceSessions,
+      recentResourceCache,
     ] = await Promise.all([
       safeCount('user_profiles'),
       safeCount('star_coin_transactions'),
@@ -139,6 +143,8 @@ export async function GET(request: NextRequest) {
       safeCount('subscriptions'),
       safeCount('study_logs'),
       safeCount('review_logs'),
+      safeCount('voice_sessions'),
+      safeCount('resource_cache'),
       safeRecent(
         'user_profiles',
         'id, username, email, level, star_coins, learning_progress, created_at, updated_at',
@@ -181,6 +187,18 @@ export async function GET(request: NextRequest) {
         'created_at',
         12
       ),
+      safeRecent(
+        'voice_sessions',
+        'id, user_id, provider, model, topic, status, started_at, ended_at, created_at',
+        'created_at',
+        12
+      ),
+      safeRecent(
+        'resource_cache',
+        'id, cache_key, resource_type, source, expires_at, updated_at',
+        'updated_at',
+        12
+      ),
     ])
 
     const errors = [
@@ -191,6 +209,8 @@ export async function GET(request: NextRequest) {
       subscriptionCount.error && { table: 'subscriptions', message: subscriptionCount.error },
       studyLogCount.error && { table: 'study_logs', message: studyLogCount.error },
       reviewLogCount.error && { table: 'review_logs', message: reviewLogCount.error },
+      voiceSessionCount.error && { table: 'voice_sessions', message: voiceSessionCount.error },
+      resourceCacheCount.error && { table: 'resource_cache', message: resourceCacheCount.error },
       recentUsers.error && { table: 'recentUsers', message: recentUsers.error },
       recentTransactions.error && { table: 'recentTransactions', message: recentTransactions.error },
       recentOrders.error && { table: 'recentOrders', message: recentOrders.error },
@@ -198,6 +218,8 @@ export async function GET(request: NextRequest) {
       recentSubscriptions.error && { table: 'recentSubscriptions', message: recentSubscriptions.error },
       recentStudyLogs.error && { table: 'recentStudyLogs', message: recentStudyLogs.error },
       recentReviewLogs.error && { table: 'recentReviewLogs', message: recentReviewLogs.error },
+      recentVoiceSessions.error && { table: 'recentVoiceSessions', message: recentVoiceSessions.error },
+      recentResourceCache.error && { table: 'recentResourceCache', message: recentResourceCache.error },
     ].filter(Boolean) as Array<{ table: string; message: string }>
     const schemaReady = errors.length === 0
 
@@ -211,6 +233,7 @@ export async function GET(request: NextRequest) {
         databaseConnected: Boolean(supabaseAdmin),
         schemaReady,
         openRouter: hasOpenRouter(),
+        openAIRealtime: hasOpenAIRealtime(),
         stripeConfigured: Boolean(env.stripeSecretKey || env.stripePublishableKey),
         stripeWebhookConfigured: Boolean(env.stripeWebhookSecret),
         databaseUrlConfigured: Boolean(env.databaseUrl),
@@ -224,6 +247,8 @@ export async function GET(request: NextRequest) {
         subscriptions: subscriptionCount.count,
         studyLogs: studyLogCount.count,
         reviewLogs: reviewLogCount.count,
+        voiceSessions: voiceSessionCount.count,
+        resourceCache: resourceCacheCount.count,
       },
       recent: {
         users: recentUsers.data,
@@ -233,6 +258,8 @@ export async function GET(request: NextRequest) {
         subscriptions: recentSubscriptions.data,
         studyLogs: recentStudyLogs.data,
         reviewLogs: recentReviewLogs.data,
+        voiceSessions: recentVoiceSessions.data,
+        resourceCache: recentResourceCache.data,
       },
       errors,
     })

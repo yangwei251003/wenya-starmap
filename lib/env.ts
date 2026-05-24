@@ -16,6 +16,9 @@ export const env = {
   openRouterApiKey: trim(process.env.OPENROUTER_API_KEY) || trim(process.env.GLM_API_KEY),
   openRouterModel:
     trim(process.env.OPENROUTER_MODEL) || 'google/gemma-4-31b-it:free',
+  openAiApiKey: trim(process.env.OPENAI_API_KEY),
+  openAiRealtimeModel:
+    trim(process.env.OPENAI_REALTIME_MODEL) || 'gpt-realtime',
   stripePublishableKey:
     trim(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) ||
     trim(process.env.STRIPE_PUBLISHABLE_KEY),
@@ -26,6 +29,10 @@ export const env = {
 
 export function hasOpenRouter(): boolean {
   return Boolean(env.openRouterApiKey)
+}
+
+export function hasOpenAIRealtime(): boolean {
+  return Boolean(env.openAiApiKey)
 }
 
 export function hasSupabase(): boolean {

@@ -26,6 +26,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
 
+  const { error: eventInsertError } = await supabaseAdmin
+    .from('stripe_events')
+    .insert({
+      id: event.id,
+      event_type: event.type,
+      payload: event as any,
+    })
+
+  if (eventInsertError?.code === '23505') {
+    return NextResponse.json({ received: true, duplicate: true })
+  }
+
+  if (eventInsertError) {
+    return NextResponse.json({ error: 'Failed to record Stripe event' }, { status: 500 })
+  }
+
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session
     const metadata = session.metadata || {}
@@ -95,7 +111,7 @@ export async function POST(request: NextRequest) {
           user_id: userId,
           plan_id: metadata.planId || 'membership',
           provider: 'stripe',
-          provider_subscription_id: checkoutSessionId,
+          provider_subscription_id: stripeSubscriptionId || checkoutSessionId,
           status: 'active',
           current_period_start: now,
           current_period_end: null,

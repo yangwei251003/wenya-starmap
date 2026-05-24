@@ -136,10 +136,24 @@ export class ProgressTrackingService {
   analyzeTrends(sessions: LearningSession[], days: number = 7): LearningTrend[] {
     const trends: Map<string, LearningTrend> = new Map()
     const now = new Date()
+    let anchorDate = now
+
+    if (sessions.length > 0) {
+      const latestSessionDate = new Date(Math.max(
+        ...sessions.map(session => new Date(session.startTime).getTime())
+      ))
+      const windowStart = new Date(now)
+      windowStart.setHours(0, 0, 0, 0)
+      windowStart.setDate(windowStart.getDate() - (days - 1))
+
+      if (latestSessionDate < windowStart || latestSessionDate > now) {
+        anchorDate = latestSessionDate
+      }
+    }
 
     // 初始化最近N天的数据
     for (let i = 0; i < days; i++) {
-      const date = new Date(now)
+      const date = new Date(anchorDate)
       date.setDate(date.getDate() - i)
       const dateStr = date.toISOString().split('T')[0]
 

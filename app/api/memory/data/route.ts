@@ -4,6 +4,13 @@ import { fsrs, State } from '@/utils/fsrs'
 
 export const dynamic = 'force-dynamic'
 
+function toFsrsState(value: string) {
+  if (value === 'new') return State.New
+  if (value === 'learning') return State.Learning
+  if (value === 'review') return State.Review
+  return State.Relearning
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -30,7 +37,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch study logs' }, { status: 500 })
     }
 
-    const memoryData = (studyLogs || []).map(log => {
+    const memoryData = (studyLogs || []).map((log) => {
       const card = {
         id: log.word_id,
         due: new Date(log.next_review),
@@ -40,24 +47,15 @@ export async function GET(request: NextRequest) {
         scheduled_days: log.scheduled_days,
         reps: log.reps,
         lapses: log.lapses,
-        state:
-          log.state === 'new'
-            ? State.New
-            : log.state === 'learning'
-              ? State.Learning
-              : log.state === 'review'
-                ? State.Review
-                : State.Relearning,
+        state: toFsrsState(log.state),
         last_review: log.last_review ? new Date(log.last_review) : undefined,
       }
-
-      const memoryStrength = fsrs.getMemoryStrength(card)
 
       return {
         word_id: log.word_id,
         stability: log.stability,
         difficulty: log.difficulty,
-        memory_strength: memoryStrength,
+        memory_strength: fsrs.getMemoryStrength(card),
         next_review: log.next_review,
         state: log.state,
         last_review: log.last_review,

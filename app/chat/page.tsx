@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Send, Bot, User, Sparkles, Lightbulb, RefreshCw, Volume2, VolumeX } from 'lucide-react'
 import { speechService } from '@/lib/speech-service'
 import { StarVoiceAvatar } from '@/components/ai/StarVoiceAvatar'
+import { RealtimeVoiceCall } from '@/components/ai/RealtimeVoiceCall'
 
 interface Message {
   id: string
@@ -192,6 +193,8 @@ export default function ChatPage() {
       />
 
       <div className="flex-1 max-w-3xl mx-auto w-full px-4 pb-4 flex flex-col">
+        <RealtimeVoiceCall />
+
         <Card className={`p-4 mb-4 ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
           <StarVoiceAvatar
             active={isTyping}
@@ -250,7 +253,9 @@ export default function ChatPage() {
                   </div>
                   <div className="flex items-center gap-2 mt-1">
                     <p className="text-xs text-cosmos-500">
-                      {message.timestamp.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                      {mounted
+                        ? message.timestamp.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+                        : '--:--'}
                     </p>
                     {/* AI消息的语音播放按钮 */}
                     {message.role === 'assistant' && speechEnabled && (

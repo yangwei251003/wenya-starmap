@@ -95,6 +95,29 @@ export async function POST(request: NextRequest) {
       if (profileError) {
         logger.warn('Profile upsert failed on register', profileError as Error)
       }
+
+      const { error: settingsError } = await supabaseAdmin.rpc('ensure_user_study_settings', {
+        p_user_id: data.user.id,
+      })
+
+      if (settingsError) {
+        logger.warn('Study settings seed failed on register', settingsError as Error)
+      }
+
+      const { error: pathError } = await supabaseAdmin.from('learning_paths').insert({
+        user_id: data.user.id,
+        current_level: level,
+        target_level: level === 'beginner' ? 'intermediate' : 'advanced',
+        progress: 0,
+        path_title: `${username} 的英语成长星图`,
+        path_summary: '根据入门水平生成的第一条学习路径',
+        path_payload: learningPath,
+        recommended_next: learningPath.recommendedNext?.slice(0, 3).map((lesson: any) => lesson.id) || [],
+      })
+
+      if (pathError) {
+        logger.warn('Learning path insert failed on register', pathError as Error)
+      }
     }
 
     logger.info('User registered successfully', {

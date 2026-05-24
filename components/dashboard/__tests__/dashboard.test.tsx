@@ -1,5 +1,5 @@
 import React from 'react'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import { ProgressCard } from '../ProgressCard'
 import { StatsCard } from '../StatsCard'
@@ -68,8 +68,8 @@ describe('Dashboard Components', () => {
 
       render(<StarMap achievements={mockAchievements} />)
 
-      expect(screen.getByText('成长星图')).toBeInTheDocument()
-      expect(screen.getByText('1 颗星辰')).toBeInTheDocument()
+      expect(screen.getByText('语言星图')).toBeInTheDocument()
+      expect(screen.getByText(/0\s*已点亮\s*·\s*3\s*待点亮/)).toBeInTheDocument()
     })
   })
 
@@ -83,12 +83,20 @@ describe('Dashboard Components', () => {
     })
 
     it('renders when visible', () => {
+      jest.useFakeTimers()
+
       render(
         <GrowthAnimation isVisible={true} achievementTitle="测试成就" />
       )
 
+      act(() => {
+        jest.advanceTimersByTime(1500)
+      })
+
       // Animation should be visible
       expect(screen.getByText('测试成就')).toBeInTheDocument()
+
+      jest.useRealTimers()
     })
   })
 
