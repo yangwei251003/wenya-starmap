@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useReducedMotion } from 'framer-motion'
 
 interface Star {
   id: number
@@ -35,6 +36,7 @@ interface Sparkle {
 }
 
 export function StarryBackground() {
+  const reducedMotion = useReducedMotion()
   const [stars, setStars] = useState<Star[]>([])
   const [sparkles, setSparkles] = useState<Sparkle[]>([])
   const [meteors, setMeteors] = useState<Meteor[]>([])
@@ -42,8 +44,8 @@ export function StarryBackground() {
   useEffect(() => {
     const createField = () => {
       const isSmallScreen = window.innerWidth < 768
-      const starCount = isSmallScreen ? 88 : 168
-      const sparkleCount = isSmallScreen ? 18 : 34
+      const starCount = reducedMotion ? (isSmallScreen ? 28 : 44) : isSmallScreen ? 88 : 168
+      const sparkleCount = reducedMotion ? 0 : isSmallScreen ? 18 : 34
       const palette = [
         { color: '#ffffff', glow: 'rgba(255, 255, 255, 0.42)', weight: 0.64 },
         { color: '#00F5A0', glow: 'rgba(0, 245, 160, 0.46)', weight: 0.26 },
@@ -97,23 +99,25 @@ export function StarryBackground() {
     createField()
     window.addEventListener('resize', createField)
 
-    const meteorInterval = setInterval(() => {
-      const newMeteor: Meteor = {
-        id: Date.now(),
-        x: Math.random() * 82,
-        y: Math.random() * 26,
-        angle: Math.random() * 18 + 32,
-        speed: Math.random() * 1.4 + 1.6,
-        length: Math.random() * 96 + 72,
-      }
-      setMeteors(prev => [...prev.slice(-3), newMeteor])
-    }, 4800)
+    const meteorInterval = reducedMotion
+      ? null
+      : setInterval(() => {
+          const newMeteor: Meteor = {
+            id: Date.now(),
+            x: Math.random() * 82,
+            y: Math.random() * 26,
+            angle: Math.random() * 18 + 32,
+            speed: Math.random() * 1.4 + 1.6,
+            length: Math.random() * 96 + 72,
+          }
+          setMeteors(prev => [...prev.slice(-3), newMeteor])
+        }, 4800)
 
     return () => {
       window.removeEventListener('resize', createField)
-      clearInterval(meteorInterval)
+      if (meteorInterval) clearInterval(meteorInterval)
     }
-  }, [])
+  }, [reducedMotion])
 
   return (
     <div className="fixed inset-0 overflow-hidden pointer-events-none bg-[#0B0F19]" style={{ zIndex: -1 }}>
@@ -140,7 +144,7 @@ export function StarryBackground() {
       />
 
       {/* Aceternity Sparkles 风格的薄荷星尘前景 */}
-      {sparkles.map(sparkle => (
+      {!reducedMotion && sparkles.map(sparkle => (
         <span
           key={sparkle.id}
           className="absolute rounded-full bg-[#00F5A0] animate-float-particle"
@@ -162,7 +166,7 @@ export function StarryBackground() {
       {stars.map(star => (
         <span
           key={star.id}
-          className="absolute rounded-full animate-twinkle"
+          className={`absolute rounded-full ${reducedMotion ? '' : 'animate-twinkle'}`}
           style={{
             left: `${star.x}%`,
             top: `${star.y}%`,
@@ -170,8 +174,8 @@ export function StarryBackground() {
             height: `${star.size}px`,
             backgroundColor: star.color,
             opacity: star.opacity,
-            animationDuration: `${star.animationDuration}s`,
-            animationDelay: `${star.animationDelay}s`,
+            animationDuration: reducedMotion ? undefined : `${star.animationDuration}s`,
+            animationDelay: reducedMotion ? undefined : `${star.animationDelay}s`,
             transform: `translate3d(${star.drift}px, 0, 0)`,
             boxShadow: `0 0 ${star.size * 6}px ${star.glow}`,
           }}
@@ -179,7 +183,7 @@ export function StarryBackground() {
       ))}
 
       {/* 克制的薄荷流星 */}
-      {meteors.map(meteor => (
+      {!reducedMotion && meteors.map(meteor => (
         <div
           key={meteor.id}
           className="absolute animate-meteor"

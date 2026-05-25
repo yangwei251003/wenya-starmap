@@ -115,6 +115,63 @@ export default function DashboardPage() {
     [todayCompleted, totalMastered, checkinStreak, starCoins]
   )
 
+  const nextStep = useMemo(() => {
+    if (!userData) {
+      return {
+        title: '先登录保存进度',
+        summary: '登录后才能同步单词、签到和成长记录。',
+        primaryHref: '/auth/login',
+        primaryLabel: '去登录',
+        secondaryHref: '/services',
+        secondaryLabel: '查看服务',
+      }
+    }
+
+    if (todayCompleted === 0) {
+      return {
+        title: '先背 10 个词',
+        summary: '今天先完成一组新词，系统会自动补上复习与成长记录。',
+        primaryHref: '/vocab',
+        primaryLabel: '开始背词',
+        secondaryHref: '/chat',
+        secondaryLabel: '先发问',
+      }
+    }
+
+    if (canCheckin) {
+      return {
+        title: '先完成签到',
+        summary: '签到能保持连续节奏，也能顺手领取今天的星币奖励。',
+        primaryHref: '/dashboard',
+        primaryLabel: '立即签到',
+        secondaryHref: '/growth-starmap',
+        secondaryLabel: '看成长',
+      }
+    }
+
+    if (todayCompleted < 20) {
+      return {
+        title: '继续补完今日目标',
+        summary: '再学一组词，今天的学习记录就会更完整。',
+        primaryHref: '/vocab',
+        primaryLabel: '继续背词',
+        secondaryHref: '/growth-starmap',
+        secondaryLabel: '看成长',
+      }
+    }
+
+    return {
+      title: '去看成长星图',
+      summary: '今天已经有学习记录了，下一步适合看看进步和遗忘曲线。',
+      primaryHref: '/growth-starmap',
+      primaryLabel: '查看星图',
+      secondaryHref: '/services',
+      secondaryLabel: '全部服务',
+    }
+  }, [userData, todayCompleted, canCheckin])
+
+  const PrimaryStepIcon = nextStep.primaryLabel === '立即签到' ? Crown : Play
+
   useEffect(() => {
     setMounted(true)
     const storedUser = window.localStorage.getItem('wenya_user')
@@ -256,6 +313,39 @@ export default function DashboardPage() {
                   <p className={`mt-2 text-xl font-semibold ${metric.tone}`}>{metric.value}</p>
                 </div>
               ))}
+            </div>
+          </Card>
+        </section>
+
+        <section className="mb-7">
+          <Card className="p-6">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="max-w-2xl">
+                <p className="text-xs uppercase tracking-[0.28em] text-cosmos-500">Next Step</p>
+                <h2 className="mt-2 text-xl font-semibold text-white">{nextStep.title}</h2>
+                <p className="mt-3 text-sm leading-6 text-cosmos-300">{nextStep.summary}</p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {nextStep.primaryLabel === '立即签到' ? (
+                  <Button variant="sprout" onClick={handleCheckin} className="gap-2">
+                    <PrimaryStepIcon className="h-4 w-4" />
+                    {nextStep.primaryLabel}
+                  </Button>
+                ) : (
+                  <Link href={nextStep.primaryHref}>
+                    <Button variant="sprout" className="gap-2">
+                      <PrimaryStepIcon className="h-4 w-4" />
+                      {nextStep.primaryLabel}
+                    </Button>
+                  </Link>
+                )}
+                <Link href={nextStep.secondaryHref}>
+                  <Button variant="cosmos" className="gap-2">
+                    <Grid3X3 className="h-4 w-4" />
+                    {nextStep.secondaryLabel}
+                  </Button>
+                </Link>
+              </div>
             </div>
           </Card>
         </section>
