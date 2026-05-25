@@ -76,6 +76,7 @@ export async function GET(request: NextRequest) {
               profile?.level ||
               data.user.user_metadata?.level ||
               'intermediate',
+            appMetadata: data.user.app_metadata as Record<string, unknown> | null,
             metadata: data.user.user_metadata as Record<string, unknown> | null,
           }),
         },

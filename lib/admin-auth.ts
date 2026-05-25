@@ -4,6 +4,7 @@ type AdminIdentity = {
   email?: string | null
   level?: string | null
   metadata?: Record<string, unknown> | null
+  appMetadata?: Record<string, unknown> | null
 }
 
 function normalizeEmails(value: string | undefined) {
@@ -18,8 +19,8 @@ const adminEmails = normalizeEmails(env.adminEmails)
 export function isAdminIdentity(identity: AdminIdentity): boolean {
   const email = identity.email?.trim().toLowerCase() || ''
   const level = identity.level?.trim().toLowerCase() || ''
-  const metadata = identity.metadata || {}
-  const metadataAdmin = metadata.admin === true || metadata.isAdmin === true
+  const appMetadata = identity.appMetadata || {}
+  const metadataAdmin = appMetadata.admin === true || appMetadata.isAdmin === true
 
   if (metadataAdmin) return true
   if (level === 'advanced') return true

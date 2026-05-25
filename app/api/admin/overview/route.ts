@@ -94,6 +94,7 @@ export async function GET(request: NextRequest) {
         authProfile?.data?.level ||
         authData.user.user_metadata?.level ||
         'intermediate',
+      appMetadata: authData.user.app_metadata as Record<string, unknown> | null,
       metadata: authData.user.user_metadata as Record<string, unknown> | null,
     })
 
