@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Home, Sprout, Star } from 'lucide-react'
+import { ArrowLeft, Grid3X3, Home, Sprout, Star } from 'lucide-react'
 import Link from 'next/link'
 
 interface PageHeaderProps {
@@ -77,10 +77,19 @@ export function PageHeader({
           </div>
 
           {/* 右侧Logo */}
-          <Link href="/" className="flex items-center gap-2 group">
-            <Sprout className="w-6 h-6 text-sprout-400 group-hover:scale-110 transition-transform" />
-            <span className="text-sm font-medium text-cosmos-300 hidden sm:inline">问芽星图</span>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/services"
+              className="flex items-center gap-2 rounded-lg bg-cosmos-800/50 px-3 py-2 text-cosmos-300 transition-all duration-300 hover:bg-cosmos-700/50 hover:text-white"
+            >
+              <Grid3X3 className="w-4 h-4" />
+              <span className="text-sm hidden sm:inline">服务</span>
+            </Link>
+            <Link href="/" className="hidden items-center gap-2 group sm:flex">
+              <Sprout className="w-6 h-6 text-sprout-400 group-hover:scale-110 transition-transform" />
+              <span className="text-sm font-medium text-cosmos-300 hidden lg:inline">问芽星图</span>
+            </Link>
+          </div>
         </div>
       </div>
     </div>

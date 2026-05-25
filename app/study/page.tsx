@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { 
   X, Volume2, ChevronRight, Sparkles, 
   Brain, Target, Flame, Award, ArrowLeft,
-  Keyboard, Eye, EyeOff
+  Keyboard, Eye, EyeOff, RefreshCw, BookOpen, LogIn
 } from 'lucide-react'
 import { srsService } from '@/lib/srs-service'
 import { smartLearningService } from '@/lib/smart-learning-service'
@@ -16,6 +16,8 @@ export default function StudyPage() {
   const [mounted, setMounted] = useState(false)
   const [userId, setUserId] = useState('')
   const [currentWord, setCurrentWord] = useState<Word | null>(null)
+  const [isPreparing, setIsPreparing] = useState(true)
+  const [isGuest, setIsGuest] = useState(false)
   const [isNew, setIsNew] = useState(false)
   const [isFlipped, setIsFlipped] = useState(false)
   const [progress, setProgress] = useState<WordProgress | null>(null)
@@ -45,12 +47,14 @@ export default function StudyPage() {
 
   // 加载下一个单词 - 不依赖 wordsStudied，使用 ref
   const loadNextWord = useCallback((uid: string, currentCount?: number) => {
+    setIsPreparing(true)
     const studied = currentCount ?? wordsStudiedRef.current
     const target = targetWordsRef.current
     
     // 检查是否已完成目标
     if (studied >= target) {
       setIsComplete(true)
+      setIsPreparing(false)
       return
     }
 
@@ -64,6 +68,7 @@ export default function StudyPage() {
       setIsComplete(true)
     }
     setProgress(srsService.getProgress(uid))
+    setIsPreparing(false)
   }, [])
 
   // 翻转卡片
@@ -135,34 +140,47 @@ export default function StudyPage() {
   useEffect(() => {
     setMounted(true)
     const user = localStorage.getItem('wenya_user')
+    let userData = { id: 'guest', username: '访客' }
+
     if (user) {
-      const userData = JSON.parse(user)
-      setUserId(userData.id)
-      
-      // 获取学习计划
-      const savedPlan = localStorage.getItem(`wenya_study_plan_${userData.id}`)
-      let planNewWords = 10
-      let planReviewWords = 20
-      
-      if (savedPlan) {
+      try {
+        const parsed = JSON.parse(user)
+        if (parsed?.id) userData = parsed
+      } catch {
+        localStorage.removeItem('wenya_user')
+      }
+    }
+
+    setUserId(userData.id)
+    setIsGuest(userData.id === 'guest')
+
+    // 获取学习计划
+    const savedPlan = localStorage.getItem(`wenya_study_plan_${userData.id}`)
+    let planNewWords = 10
+    let planReviewWords = 20
+
+    if (savedPlan) {
+      try {
         const plan = JSON.parse(savedPlan)
         planNewWords = plan.newWords || 10
         planReviewWords = plan.reviewWords || 20
+      } catch {
+        localStorage.removeItem(`wenya_study_plan_${userData.id}`)
       }
-      
-      // 设置学习计划和目标
-      setStudyPlan({
-        newWords: planNewWords,
-        reviewWords: planReviewWords
-      })
-      
-      // 更新 ref
-      targetWordsRef.current = planNewWords + planReviewWords
-      
-      // 加载第一个单词
-      loadNextWord(userData.id, 0)
-      setProgress(srsService.getProgress(userData.id))
     }
+
+    // 设置学习计划和目标
+    setStudyPlan({
+      newWords: planNewWords,
+      reviewWords: planReviewWords
+    })
+
+    // 更新 ref
+    targetWordsRef.current = planNewWords + planReviewWords
+
+    // 加载第一个单词
+    loadNextWord(userData.id, 0)
+    setProgress(srsService.getProgress(userData.id))
   }, []) // 移除 loadNextWord 依赖，避免循环
 
   // 键盘事件监听
@@ -247,6 +265,17 @@ export default function StudyPage() {
     )
   }
 
+  if (isPreparing && !currentWord && !isComplete) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-cosmos-900 via-cosmos-800 to-cosmos-900 flex items-center justify-center p-4">
+        <div className="rounded-lg border border-white/10 bg-white/5 p-8 text-center backdrop-blur-xl">
+          <div className="w-14 h-14 border-4 border-sprout-400 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-cosmos-200">正在准备今日词卡...</p>
+        </div>
+      </div>
+    )
+  }
+
   // 完成界面
   if (isComplete) {
     return (
@@ -263,6 +292,43 @@ export default function StudyPage() {
     )
   }
 
+  if (!currentWord) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-cosmos-900 via-cosmos-800 to-cosmos-900 flex items-center justify-center p-4">
+        <div className="w-full max-w-xl rounded-lg border border-white/10 bg-white/5 p-8 text-center shadow-2xl backdrop-blur-xl">
+          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-lg bg-[#00F5A0]/12 text-[#00F5A0]">
+            <BookOpen className="h-8 w-8" />
+          </div>
+          <h1 className="text-2xl font-semibold text-white">今日词卡没有加载出来</h1>
+          <p className="mt-3 text-sm leading-6 text-cosmos-300">
+            可能是本地学习记录异常，或当前词库已经全部排到未来复习。你可以重新准备词卡，或进入新版背单词入口。
+          </p>
+          {isGuest && (
+            <p className="mt-3 rounded-lg border border-star-300/20 bg-star-300/10 px-4 py-3 text-sm text-star-100">
+              当前是访客模式，登录后会保留长期学习记录。
+            </p>
+          )}
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <button
+              onClick={() => loadNextWord(userId || 'guest', 0)}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#00F5A0] px-5 py-3 text-sm font-medium text-[#07111d] transition hover:bg-[#4ff0bc]"
+            >
+              <RefreshCw className="h-4 w-4" />
+              重新准备
+            </button>
+            <button
+              onClick={() => router.push(isGuest ? '/auth/login' : '/vocab')}
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/10"
+            >
+              {isGuest ? <LogIn className="h-4 w-4" /> : <BookOpen className="h-4 w-4" />}
+              {isGuest ? '登录账号' : '进入新版背单词'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-cosmos-900 via-cosmos-800 to-cosmos-900 flex flex-col">
       {/* 顶部进度条 */}
@@ -270,7 +336,7 @@ export default function StudyPage() {
         <div 
           className="h-full bg-gradient-to-r from-sprout-400 to-star-400 transition-all duration-500"
           style={{ 
-            width: `${(wordsStudied / targetWords) * 100}%`
+            width: `${targetWords > 0 ? (wordsStudied / targetWords) * 100 : 0}%`
           }}
         />
       </div>

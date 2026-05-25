@@ -4,7 +4,7 @@
  */
 
 import { Word, UserWord, ReviewQuality, StudySession, WordProgress } from '@/types'
-import { wordsData, getWordById } from './words-data'
+import { getVocabularyBank, getVocabularyWordById } from './vocab-word-bank'
 import { wordRecordService } from './word-record-service'
 
 // SRS 配置
@@ -73,7 +73,15 @@ class SRSService {
   getUserWords(userId: string): UserWord[] {
     if (typeof window === 'undefined') return []
     const stored = localStorage.getItem(`${this.userWordsKey}_${userId}`)
-    return stored ? JSON.parse(stored) : []
+    if (!stored) return []
+
+    try {
+      const parsed = JSON.parse(stored)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      localStorage.removeItem(`${this.userWordsKey}_${userId}`)
+      return []
+    }
   }
 
   /**
@@ -142,7 +150,7 @@ class SRSService {
       .slice(0, SRS_CONFIG.DAILY_REVIEW_LIMIT)
 
     return dueWords
-      .map(uw => getWordById(uw.wordId))
+      .map(uw => getVocabularyWordById(uw.wordId))
       .filter((w): w is Word => w !== undefined)
   }
 
@@ -154,7 +162,7 @@ class SRSService {
     const learnedWordIds = new Set(userWords.map(uw => uw.wordId))
     
     // 获取未学习的单词
-    const newWords = wordsData
+    const newWords = getVocabularyBank()
       .filter(w => !learnedWordIds.has(w.id))
       .slice(0, SRS_CONFIG.DAILY_NEW_WORDS)
 
@@ -229,7 +237,11 @@ class SRSService {
     const stored = localStorage.getItem(`${this.sessionKey}_${userId}_${today}`)
     
     if (stored) {
-      return JSON.parse(stored)
+      try {
+        return JSON.parse(stored)
+      } catch {
+        localStorage.removeItem(`${this.sessionKey}_${userId}_${today}`)
+      }
     }
     
     return this.createEmptySession(userId)
@@ -311,7 +323,13 @@ class SRSService {
       
       const stored = localStorage.getItem(`${this.sessionKey}_${userId}_${dateStr}`)
       if (stored) {
-        const session: StudySession = JSON.parse(stored)
+        let session: StudySession
+        try {
+          session = JSON.parse(stored)
+        } catch {
+          localStorage.removeItem(`${this.sessionKey}_${userId}_${dateStr}`)
+          break
+        }
         if (session.totalWords > 0) {
           streak++
         } else {

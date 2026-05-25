@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { StarryBackground } from '@/components/ui/StarryBackground'
 import QueryProvider from '@/components/providers/QueryProvider'
+import { ServiceLauncher } from '@/components/navigation/ServiceLauncher'
 
 // 使用系统字体替代Google Fonts以避免网络问题
 const fontClass = 'font-sans'
@@ -31,6 +32,7 @@ export default function RootLayout({
           <main className="relative z-10 min-h-screen">
             {children}
           </main>
+          <ServiceLauncher />
         </QueryProvider>
       </body>
     </html>
