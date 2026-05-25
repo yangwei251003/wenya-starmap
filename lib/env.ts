@@ -16,6 +16,9 @@ export const env = {
   openRouterApiKey: trim(process.env.OPENROUTER_API_KEY) || trim(process.env.GLM_API_KEY),
   openRouterModel:
     trim(process.env.OPENROUTER_MODEL) || 'google/gemma-4-31b-it:free',
+  openRouterFallbackModels:
+    trim(process.env.OPENROUTER_FALLBACK_MODELS) ||
+    'liquid/lfm-2.5-1.2b-instruct:free',
   openAiApiKey: trim(process.env.OPENAI_API_KEY),
   openAiRealtimeModel:
     trim(process.env.OPENAI_REALTIME_MODEL) || 'gpt-realtime',
