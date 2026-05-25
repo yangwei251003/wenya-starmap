@@ -578,6 +578,7 @@ export default function GrowthStarMapPage() {
           <button
             onClick={() => window.location.reload()}
             className="p-2 text-cosmos-400 hover:text-white transition-colors"
+            aria-label="刷新成长星图数据"
           >
             <RefreshCw className="w-5 h-5" />
           </button>

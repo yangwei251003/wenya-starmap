@@ -341,6 +341,7 @@ export default function ChatPage() {
                 onClick={handleSend}
                 disabled={!inputValue.trim() || isTyping}
                 className="px-4"
+                aria-label="发送消息"
               >
                 <Send className="w-5 h-5" />
               </Button>
