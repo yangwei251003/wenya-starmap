@@ -1,5 +1,5 @@
 import { Rating, State, type Card } from '@/utils/fsrs'
-import { getAllWords } from './words-data'
+import { getVocabularyBank, getVocabularyWordById } from './vocab-word-bank'
 import { fsrs } from '@/utils/fsrs'
 import { supabaseAdmin } from './supabase'
 
@@ -34,9 +34,110 @@ export type ReviewLogRow = {
   created_at?: string
 }
 
-const QUEUE_SEED_COUNT = 30
+export type StudyMode = 'recognition' | 'meaning_choice' | 'listening' | 'spelling' | 'cloze'
+export type QueueReason = 'due_review' | 'weak_word' | 'new_word' | 'long_term_reinforce'
+
+export type StudyQueueItem = ReturnType<typeof toStudyCard> & {
+  word: NonNullable<ReturnType<typeof getVocabularyWordById>>
+  mode: StudyMode
+  reason: QueueReason
+  retrievability: number
+}
+
+const DEFAULT_DAILY_NEW_LIMIT = 20
+const DEFAULT_DAILY_REVIEW_LIMIT = 80
+const MAX_PREFETCH_NEW = 120
+
+function startOfToday() {
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+  return now
+}
+
+function stateToFsrsState(state: StudyLogRow['state']) {
+  if (state === 'new') return State.New
+  if (state === 'learning') return State.Learning
+  if (state === 'review') return State.Review
+  return State.Relearning
+}
+
+function toStateName(state: State): StudyLogRow['state'] {
+  if (state === State.New) return 'new'
+  if (state === State.Learning) return 'learning'
+  if (state === State.Review) return 'review'
+  return 'relearning'
+}
+
+function createNewStudyRow(userId: string, wordId: string, now = new Date()): StudyLogRow {
+  return {
+    id: crypto.randomUUID(),
+    user_id: userId,
+    word_id: wordId,
+    last_review: null,
+    next_review: now.toISOString(),
+    stability: 0,
+    difficulty: 4,
+    state: 'new',
+    step: 0,
+    reps: 0,
+    lapses: 0,
+    elapsed_days: 0,
+    scheduled_days: 0,
+    created_at: now.toISOString(),
+    updated_at: now.toISOString(),
+  }
+}
+
+function buildCard(row: StudyLogRow): Card {
+  return {
+    id: row.word_id,
+    due: new Date(row.next_review),
+    stability: row.stability,
+    difficulty: row.difficulty,
+    elapsed_days: row.elapsed_days,
+    scheduled_days: row.scheduled_days,
+    reps: row.reps,
+    lapses: row.lapses,
+    state: stateToFsrsState(row.state),
+    last_review: row.last_review ? new Date(row.last_review) : undefined,
+  }
+}
+
+function getRetrievability(row: StudyLogRow, now = new Date()) {
+  if (row.state === 'new') return 0
+  return fsrs.getMemoryStrength(buildCard(row), now) / 100
+}
+
+function chooseStudyMode(row: StudyLogRow, reason: QueueReason): StudyMode {
+  if (row.lapses >= 2 || reason === 'weak_word') return 'spelling'
+  if (row.state === 'learning' || row.state === 'relearning') return 'meaning_choice'
+  if (row.reps >= 4 && row.stability >= 7) return 'cloze'
+  if (row.reps >= 2) return 'listening'
+  return 'recognition'
+}
+
+function getQueueReason(row: StudyLogRow, now = new Date()): QueueReason {
+  const due = new Date(row.next_review).getTime() <= now.getTime()
+  if (row.state === 'new') return 'new_word'
+  if (row.lapses > 0 || row.difficulty >= 7 || row.state === 'relearning') return 'weak_word'
+  if (due) return 'due_review'
+  return 'long_term_reinforce'
+}
 
 export function toStudyCard(row: StudyLogRow) {
+  const now = new Date()
+  const reason = getQueueReason(row, now)
+  const dueAt = new Date(row.next_review).getTime()
+  const isDue = dueAt <= now.getTime()
+  const priority =
+    reason === 'due_review'
+      ? 0
+      : reason === 'weak_word'
+        ? 1
+        : reason === 'new_word'
+          ? 2
+          : 3
+
   return {
     id: `card_${row.word_id}`,
     user_id: row.user_id,
@@ -45,65 +146,53 @@ export function toStudyCard(row: StudyLogRow) {
     stability: row.stability,
     difficulty: row.difficulty,
     state: row.state,
-    priority: row.state === 'new' ? 2 : 1,
-    type: row.state === 'new' ? 'new' : 'review',
+    priority,
+    type: row.state === 'new' ? 'new' as const : 'review' as const,
     reps: row.reps,
     lapses: row.lapses,
     elapsed_days: row.elapsed_days,
     scheduled_days: row.scheduled_days,
     step: row.step,
+    is_due: isDue,
+    overdue_hours: isDue ? Math.max(0, (now.getTime() - dueAt) / 36e5) : 0,
   }
 }
 
-export async function ensureStudySeeds(userId: string): Promise<StudyLogRow[]> {
-  if (!supabaseAdmin) return []
-
-  const { data: existing } = await supabaseAdmin
-    .from('study_logs')
-    .select('*')
-    .eq('user_id', userId)
-    .limit(1)
-
-  if (existing && existing.length > 0) {
-    const { data } = await supabaseAdmin
-      .from('study_logs')
-      .select('*')
-      .eq('user_id', userId)
-      .order('next_review', { ascending: true })
-      .order('updated_at', { ascending: false })
-
-    return (data || []) as StudyLogRow[]
+async function getSettings(userId: string) {
+  if (!supabaseAdmin) {
+    return {
+      daily_new_limit: DEFAULT_DAILY_NEW_LIMIT,
+      daily_review_limit: DEFAULT_DAILY_REVIEW_LIMIT,
+    }
   }
 
-  const words = getAllWords().slice(0, QUEUE_SEED_COUNT)
-  const now = new Date()
+  const { data } = await supabaseAdmin
+    .from('user_study_settings')
+    .select('daily_new_limit,daily_review_limit')
+    .eq('user_id', userId)
+    .maybeSingle()
 
-  const seedRows = words.map((word, index) => {
-    const isReview = index >= 10
-    const nextReview = new Date(now)
-    if (isReview) {
-      nextReview.setDate(nextReview.getDate() - (index - 9))
-    }
+  return {
+    daily_new_limit: data?.daily_new_limit ?? DEFAULT_DAILY_NEW_LIMIT,
+    daily_review_limit: data?.daily_review_limit ?? DEFAULT_DAILY_REVIEW_LIMIT,
+  }
+}
 
-    return {
-      user_id: userId,
-      word_id: word.id,
-      last_review: isReview ? new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString() : null,
-      next_review: nextReview.toISOString(),
-      stability: isReview ? 3 + Math.random() * 5 : 1,
-      difficulty: isReview ? 3 + Math.random() * 2 : 4,
-      state: (isReview ? 'review' : 'new') as StudyLogRow['state'],
-      step: 0,
-      reps: isReview ? 1 + Math.floor(Math.random() * 3) : 0,
-      lapses: 0,
-      elapsed_days: isReview ? 1 : 0,
-      scheduled_days: isReview ? 2 + Math.floor(Math.random() * 5) : 0,
-    }
-  })
+async function getNewWordsStudiedToday(userId: string) {
+  if (!supabaseAdmin) return 0
 
-  await supabaseAdmin
-    .from('study_logs')
-    .upsert(seedRows, { onConflict: 'user_id,word_id' })
+  const { count } = await supabaseAdmin
+    .from('review_logs')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('previous_state', 'new')
+    .gte('review_time', startOfToday().toISOString())
+
+  return count ?? 0
+}
+
+export async function getStudyLogs(userId: string): Promise<StudyLogRow[]> {
+  if (!supabaseAdmin) return []
 
   const { data } = await supabaseAdmin
     .from('study_logs')
@@ -115,41 +204,94 @@ export async function ensureStudySeeds(userId: string): Promise<StudyLogRow[]> {
   return (data || []) as StudyLogRow[]
 }
 
-export async function getStudyLogs(userId: string): Promise<StudyLogRow[]> {
-  if (!supabaseAdmin) return []
-  return ensureStudySeeds(userId)
+async function ensureNewWordRows(userId: string, rows: StudyLogRow[], targetNewCount: number) {
+  if (!supabaseAdmin || targetNewCount <= 0) return rows
+
+  const knownIds = new Set(rows.map((row) => row.word_id))
+  const words = getVocabularyBank()
+  const candidates = words.filter((word) => !knownIds.has(word.id)).slice(0, Math.min(MAX_PREFETCH_NEW, targetNewCount))
+
+  if (!candidates.length) return rows
+
+  const now = new Date()
+  const newRows = candidates.map((word) => createNewStudyRow(userId, word.id, now))
+
+  await supabaseAdmin.from('study_logs').upsert(newRows, { onConflict: 'user_id,word_id' })
+
+  return [...rows, ...newRows]
 }
 
-export async function getStudyQueue(userId: string) {
-  const rows = await getStudyLogs(userId)
+export async function getStudyQueue(userId: string, limit = 20) {
+  const settings = await getSettings(userId)
+  const studiedNewToday = await getNewWordsStudiedToday(userId)
+  const remainingNewWords = Math.max(0, settings.daily_new_limit - studiedNewToday)
   const now = new Date()
 
-  const queue = rows
-    .map(toStudyCard)
-    .sort((a, b) => {
-      const aDue = new Date(a.next_review).getTime()
-      const bDue = new Date(b.next_review).getTime()
+  let rows = await getStudyLogs(userId)
+  const existingNew = rows.filter((row) => row.state === 'new').length
+  rows = await ensureNewWordRows(userId, rows, Math.max(limit, remainingNewWords + limit) - existingNew)
+
+  const vocabulary = new Map(getVocabularyBank().map((word) => [word.id, word]))
+
+  const allItems = rows
+    .map((row) => {
+      const word = vocabulary.get(row.word_id)
+      if (!word) return null
+      const base = toStudyCard(row)
+      const reason = getQueueReason(row, now)
+      return {
+        ...base,
+        word,
+        mode: chooseStudyMode(row, reason),
+        reason,
+        retrievability: getRetrievability(row, now),
+      } satisfies StudyQueueItem
+    })
+    .filter((item): item is StudyQueueItem => Boolean(item))
+
+  const dueReviews = allItems.filter((item) => item.reason === 'due_review')
+  const weak = allItems.filter((item) => item.reason === 'weak_word')
+  const fresh = allItems.filter((item) => item.reason === 'new_word').slice(0, remainingNewWords)
+  const reinforce = allItems.filter((item) => item.reason === 'long_term_reinforce')
+
+  const sortQueue = (items: StudyQueueItem[]) =>
+    [...items].sort((a, b) => {
       if (a.priority !== b.priority) return a.priority - b.priority
-      return aDue - bDue
+      if (a.reason === 'weak_word' && b.reason === 'weak_word') {
+        return b.lapses - a.lapses || b.difficulty - a.difficulty || a.retrievability - b.retrievability
+      }
+      return new Date(a.next_review).getTime() - new Date(b.next_review).getTime()
     })
 
-  const review = queue.filter(card => card.type === 'review')
-  const newCards = queue.filter(card => card.type === 'new')
+  const queue = [...sortQueue(dueReviews), ...sortQueue(weak), ...sortQueue(fresh), ...sortQueue(reinforce)].slice(0, limit)
+  const mastered = allItems.filter((item) => item.state === 'review' && item.stability >= 30 && item.lapses === 0).length
 
   return {
     queue,
     stats: {
       total: queue.length,
-      review: review.length,
-      new: newCards.length,
-      dailyNewLimit: 20,
-      dailyReviewLimit: 50,
-      newWordsStudiedToday: 0,
-      remainingNewWords: Math.max(0, 20 - newCards.length),
+      review: queue.filter((card) => card.type === 'review').length,
+      new: queue.filter((card) => card.type === 'new').length,
+      due: dueReviews.length,
+      weak: weak.length,
+      mastered,
+      bankTotal: getVocabularyBank().length,
+      dailyNewLimit: settings.daily_new_limit,
+      dailyReviewLimit: settings.daily_review_limit,
+      newWordsStudiedToday: studiedNewToday,
+      remainingNewWords,
     },
+    recommendation: buildRecommendation(dueReviews.length, weak.length, remainingNewWords, queue.length),
     rows,
     now,
   }
+}
+
+function buildRecommendation(due: number, weak: number, remainingNew: number, queueLength: number) {
+  if (weak >= 5) return '今天先稳住薄弱词，建议用拼写和例句填空强化。'
+  if (due >= 10) return '复习债较多，先完成到期复习，再补少量新词。'
+  if (remainingNew > 0 && queueLength > 0) return '复习压力可控，可以学习一组新词并穿插听音辨词。'
+  return '今天主要做长期巩固，保持节奏就很好。'
 }
 
 export async function ensureStudyLog(userId: string, wordId: string): Promise<StudyLogRow | null> {
@@ -166,29 +308,7 @@ export async function ensureStudyLog(userId: string, wordId: string): Promise<St
     return data as StudyLogRow
   }
 
-  const now = new Date()
-  const card = fsrs.createEmptyCard(now)
-  card.id = wordId
-  const scheduling = fsrs.repeat(card, now)
-  const newCard = scheduling.good.card
-
-  const row: StudyLogRow = {
-    id: crypto.randomUUID(),
-    user_id: userId,
-    word_id: wordId,
-    last_review: null,
-    next_review: newCard.due.toISOString(),
-    stability: newCard.stability,
-    difficulty: newCard.difficulty,
-    state: 'new',
-    step: 0,
-    reps: 0,
-    lapses: 0,
-    elapsed_days: 0,
-    scheduled_days: newCard.scheduled_days,
-    created_at: now.toISOString(),
-    updated_at: now.toISOString(),
-  }
+  const row = createNewStudyRow(userId, wordId)
 
   await supabaseAdmin
     .from('study_logs')
@@ -212,26 +332,7 @@ export async function recordReview(
     return null
   }
 
-  const previousCard: Card = {
-    id: wordId,
-    due: new Date(existing.next_review),
-    stability: existing.stability,
-    difficulty: existing.difficulty,
-    elapsed_days: existing.elapsed_days,
-    scheduled_days: existing.scheduled_days,
-    reps: existing.reps,
-    lapses: existing.lapses,
-    state:
-      existing.state === 'new'
-        ? State.New
-        : existing.state === 'learning'
-          ? State.Learning
-          : existing.state === 'review'
-            ? State.Review
-            : State.Relearning,
-    last_review: existing.last_review ? new Date(existing.last_review) : undefined,
-  }
-
+  const previousCard = buildCard(existing)
   const scheduling = fsrs.repeat(previousCard, reviewTime)
   const nextCard =
     rating === Rating.Again
@@ -248,15 +349,8 @@ export async function recordReview(
     next_review: nextCard.due.toISOString(),
     stability: nextCard.stability,
     difficulty: nextCard.difficulty,
-    state:
-      nextCard.state === State.New
-        ? 'new'
-        : nextCard.state === State.Learning
-          ? 'learning'
-          : nextCard.state === State.Review
-            ? 'review'
-            : 'relearning',
-    step: nextCard.state === State.Learning ? 1 : 0,
+    state: toStateName(nextCard.state),
+    step: nextCard.state === State.Learning || nextCard.state === State.Relearning ? 1 : 0,
     reps: nextCard.reps,
     lapses: nextCard.lapses,
     elapsed_days: nextCard.elapsed_days,
@@ -268,27 +362,22 @@ export async function recordReview(
     .from('study_logs')
     .upsert(updatedRow, { onConflict: 'user_id,word_id' })
 
+  const selectedLog =
+    rating === Rating.Again
+      ? scheduling.again.review_log
+      : rating === Rating.Hard
+        ? scheduling.hard.review_log
+        : rating === Rating.Easy
+          ? scheduling.easy.review_log
+          : scheduling.good.review_log
+
   const reviewLog: ReviewLogRow = {
     user_id: userId,
     word_id: wordId,
     study_log_id: existing.id,
     rating,
-    elapsed_days:
-      rating === Rating.Again
-        ? scheduling.again.review_log.elapsed_days
-        : rating === Rating.Hard
-          ? scheduling.hard.review_log.elapsed_days
-          : rating === Rating.Easy
-            ? scheduling.easy.review_log.elapsed_days
-            : scheduling.good.review_log.elapsed_days,
-    scheduled_days:
-      rating === Rating.Again
-        ? scheduling.again.review_log.scheduled_days
-        : rating === Rating.Hard
-          ? scheduling.hard.review_log.scheduled_days
-          : rating === Rating.Easy
-            ? scheduling.easy.review_log.scheduled_days
-            : scheduling.good.review_log.scheduled_days,
+    elapsed_days: selectedLog.elapsed_days,
+    scheduled_days: selectedLog.scheduled_days,
     review_time: reviewTime.toISOString(),
     previous_state: existing.state,
   }

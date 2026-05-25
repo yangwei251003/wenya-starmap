@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, wordId, rating, reviewTime } = await request.json()
+    const { userId, wordId, rating, reviewTime, responseTimeMs, mode, wasRevealed, answerText } = await request.json()
 
     if (!userId || !wordId || rating === undefined) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -41,6 +41,12 @@ export async function POST(request: NextRequest) {
         state: result.studyLog.state,
         memory_strength: result.memoryStrength,
         scheduled_days: result.studyLog.scheduled_days,
+        adaptive: {
+          responseTimeMs: typeof responseTimeMs === 'number' ? responseTimeMs : null,
+          mode: typeof mode === 'string' ? mode : null,
+          wasRevealed: Boolean(wasRevealed),
+          answerText: typeof answerText === 'string' ? answerText.slice(0, 200) : '',
+        },
       },
     })
   } catch (error) {

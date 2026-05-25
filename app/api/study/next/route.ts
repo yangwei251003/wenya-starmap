@@ -7,6 +7,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
+    const limit = Math.min(50, Math.max(1, Number(searchParams.get('limit') || 20)))
 
     if (!userId) {
       return NextResponse.json(
@@ -15,21 +16,27 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const result = await getStudyQueue(userId)
-    const nextCard = result.queue[0]
+    const result = await getStudyQueue(userId, limit)
 
-    if (!nextCard) {
+    if (!result.queue.length) {
       return NextResponse.json({
         success: true,
         data: {
           message: '当前没有待学习内容',
+          queue: [],
+          stats: result.stats,
+          recommendation: result.recommendation,
         },
       })
     }
 
     return NextResponse.json({
       success: true,
-      data: nextCard,
+      data: {
+        queue: result.queue.map((item) => ({ ...item, resource: null })),
+        stats: result.stats,
+        recommendation: result.recommendation,
+      },
     })
   } catch (error) {
     return NextResponse.json(
