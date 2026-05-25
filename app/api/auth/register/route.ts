@@ -56,32 +56,75 @@ export async function POST(request: NextRequest) {
     }
 
     const authClient = createAuthClient()
-    const { data, error } = await authClient.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
+    let authUser = null as Awaited<ReturnType<typeof authClient.auth.getUser>>['data']['user'] | null
+    let authSession = null as Awaited<ReturnType<typeof authClient.auth.signInWithPassword>>['data']['session'] | null
+
+    if (hasSupabaseServiceRole() && supabaseAdmin) {
+      const { data: createData, error: createError } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: {
           username,
           level,
         },
-      },
-    })
+      })
 
-    if (error || !data.user) {
+      if (createError || !createData.user) {
+        return NextResponse.json(
+          { error: { message: createError?.message || '注册失败，请稍后重试' } },
+          { status: 400 }
+        )
+      }
+
+      authUser = createData.user
+
+      const { data: signInData, error: signInError } = await authClient.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      if (!signInError) {
+        authSession = signInData.session || null
+      }
+    } else {
+      const { data, error } = await authClient.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            username,
+            level,
+          },
+        },
+      })
+
+      if (error || !data.user) {
+        return NextResponse.json(
+          { error: { message: error?.message || '注册失败，请稍后重试' } },
+          { status: 400 }
+        )
+      }
+
+      authUser = data.user
+      authSession = data.session || null
+    }
+
+    if (!authUser) {
       return NextResponse.json(
-        { error: { message: error?.message || '注册失败，请稍后重试' } },
+        { error: { message: '注册失败，请稍后重试' } },
         { status: 400 }
       )
     }
 
     if (hasSupabaseServiceRole() && supabaseAdmin) {
-      const learningPath = await learningPathService.createPathForNewUser(data.user.id, {
+      const learningPath = await learningPathService.createPathForNewUser(authUser.id, {
         level: level as any,
         targetLevel: level === 'beginner' ? 'intermediate' : 'advanced',
       })
 
       const { error: profileError } = await supabaseAdmin.from('user_profiles').upsert({
-        id: data.user.id,
+        id: authUser.id,
         username,
         email,
         level,
@@ -97,7 +140,7 @@ export async function POST(request: NextRequest) {
       }
 
       const { error: settingsError } = await supabaseAdmin.rpc('ensure_user_study_settings', {
-        p_user_id: data.user.id,
+        p_user_id: authUser.id,
       })
 
       if (settingsError) {
@@ -105,7 +148,7 @@ export async function POST(request: NextRequest) {
       }
 
       const { error: pathError } = await supabaseAdmin.from('learning_paths').insert({
-        user_id: data.user.id,
+        user_id: authUser.id,
         current_level: level,
         target_level: level === 'beginner' ? 'intermediate' : 'advanced',
         progress: 0,
@@ -121,7 +164,7 @@ export async function POST(request: NextRequest) {
     }
 
     logger.info('User registered successfully', {
-      userId: data.user.id,
+      userId: authUser.id,
       username,
       email,
     })
@@ -130,16 +173,16 @@ export async function POST(request: NextRequest) {
       success: true,
       data: {
         user: {
-          id: data.user.id,
+          id: authUser.id,
           username,
           email,
           level,
           starCoins: 200,
           isNewUser: true,
         },
-        session: data.session ? {
-          accessToken: data.session.access_token,
-          refreshToken: data.session.refresh_token,
+        session: authSession ? {
+          accessToken: authSession.access_token,
+          refreshToken: authSession.refresh_token,
         } : null,
         message: '注册成功！欢迎加入问芽星图！获得200星币新人礼包！',
       },

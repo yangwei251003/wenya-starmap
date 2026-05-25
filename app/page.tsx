@@ -122,6 +122,7 @@ export default function HomePage() {
             <Link href="/dashboard" className="transition hover:text-white">学习控制台</Link>
             <Link href="/chat" className="transition hover:text-white">AI 对话</Link>
             <Link href="/growth-starmap" className="transition hover:text-white">成长星图</Link>
+            <Link href="/admin" className="transition hover:text-white">后台</Link>
             <Link href="/competition" className="transition hover:text-white">评审中心</Link>
           </nav>
 

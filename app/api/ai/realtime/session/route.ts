@@ -7,19 +7,6 @@ export const dynamic = 'force-dynamic'
 const REALTIME_SESSION_URL = 'https://api.openai.com/v1/realtime/client_secrets'
 
 export async function POST(request: NextRequest) {
-  if (!hasOpenAIRealtime()) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: 'OPENAI_NOT_CONFIGURED',
-          message: '语音通话服务未配置 OPENAI_API_KEY',
-        },
-      },
-      { status: 200 }
-    )
-  }
-
   let body: {
     level?: string
     topic?: string
@@ -39,6 +26,34 @@ export async function POST(request: NextRequest) {
 Speak naturally and warmly. Keep turns concise enough for a phone-like conversation.
 Help the learner practice English, gently correct mistakes, and briefly explain key phrases in Chinese when useful.
 Learner level: ${level}. Conversation topic: ${topic}.`
+
+  if (!hasOpenAIRealtime()) {
+    if (supabaseAdmin && body.userId) {
+      await supabaseAdmin.from('voice_sessions').insert({
+        user_id: body.userId,
+        provider: 'browser',
+        model: 'browser-speech-mode',
+        topic,
+        status: 'created',
+        metadata: {
+          level,
+          reason: 'OPENAI_API_KEY not configured',
+        },
+      })
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        provider: 'browser',
+        model: 'browser-speech-mode',
+        topic,
+        level,
+        message: '已切换到浏览器语音模式，无需 OPENAI_API_KEY',
+        instructions,
+      },
+    })
+  }
 
   try {
     const response = await fetch(REALTIME_SESSION_URL, {

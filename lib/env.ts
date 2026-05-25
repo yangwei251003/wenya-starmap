@@ -2,13 +2,27 @@ const trim = (value: string | undefined) => value?.trim() || ''
 const vercelUrl = trim(process.env.VERCEL_URL)
 const vercelAppUrl = vercelUrl ? `https://${vercelUrl}` : ''
 
+function normalizeSupabaseUrl(value: string): string {
+  const trimmed = trim(value)
+  if (!trimmed) return ''
+
+  try {
+    const parsed = new URL(trimmed.startsWith('http') ? trimmed : `https://${trimmed}`)
+    return parsed.origin
+  } catch {
+    return trimmed
+      .replace(/\/(rest|auth|storage|functions)\/v1\/?$/i, '')
+      .replace(/\/+$/, '')
+  }
+}
+
 export const env = {
   appUrl:
     trim(process.env.NEXT_PUBLIC_APP_URL) ||
     vercelAppUrl ||
     'http://localhost:3000',
   nodeEnv: trim(process.env.NODE_ENV) || 'development',
-  supabaseUrl: trim(process.env.NEXT_PUBLIC_SUPABASE_URL),
+  supabaseUrl: normalizeSupabaseUrl(process.env.NEXT_PUBLIC_SUPABASE_URL || ''),
   supabaseAnonKey: trim(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
   supabaseServiceRoleKey: trim(process.env.SUPABASE_SERVICE_ROLE_KEY),
   adminEmails: trim(process.env.ADMIN_EMAILS),
