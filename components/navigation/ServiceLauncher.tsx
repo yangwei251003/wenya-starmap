@@ -24,7 +24,7 @@ const iconMap: Record<string, ComponentType<{ className?: string }>> = {
   route: Route,
 }
 
-const hiddenPrefixes = ['/', '/auth/login', '/auth/register']
+const hiddenRoutes = ['/', '/services', '/auth/login', '/auth/register']
 
 export function ServiceLauncher() {
   const pathname = usePathname()
@@ -32,7 +32,7 @@ export function ServiceLauncher() {
 
   const shouldHide = useMemo(() => {
     if (!pathname) return true
-    return hiddenPrefixes.some((path) => pathname === path)
+    return hiddenRoutes.some((path) => pathname === path)
   }, [pathname])
 
   if (shouldHide) return null

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { 
   Star, TrendingUp, Clock, Target, Zap, BookOpen, Award, 
@@ -9,9 +9,18 @@ import {
 import Link from 'next/link'
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend
 } from 'recharts'
 import './chart-styles.css'
+
+function parseStoredJson<T>(raw: string | null, fallback: T): T {
+  if (!raw) return fallback
+  try {
+    return JSON.parse(raw) as T
+  } catch {
+    return fallback
+  }
+}
 
 // 学习数据类型
 interface LearningData {
@@ -62,6 +71,11 @@ export default function GrowthStarMapPage() {
   const [mounted, setMounted] = useState(false)
   const [data, setData] = useState<LearningData | null>(null)
   const [userName, setUserName] = useState('')
+  const [chartsReady, setChartsReady] = useState(false)
+  const memoryChartRef = useRef<HTMLDivElement>(null)
+  const vocabularyChartRef = useRef<HTMLDivElement>(null)
+  const [memoryChartWidth, setMemoryChartWidth] = useState(0)
+  const [vocabularyChartWidth, setVocabularyChartWidth] = useState(0)
 
   // 直接从localStorage获取数据
   useEffect(() => {
@@ -72,9 +86,13 @@ export default function GrowthStarMapPage() {
     let userId = 'demo-user'
     
     if (userStr) {
-      const user = JSON.parse(userStr)
-      userId = user.id
-      setUserName(user.username || '学习者')
+      const user = parseStoredJson<{ id?: string; username?: string } | null>(userStr, null)
+      if (user?.id) {
+        userId = user.id
+        setUserName(user.username || '学习者')
+      } else {
+        localStorage.removeItem('wenya_user')
+      }
     }
 
     // 直接从localStorage获取数据
@@ -82,8 +100,8 @@ export default function GrowthStarMapPage() {
       // 获取用户单词记录
       const userWordsStr = localStorage.getItem(`wenya_user_words_${userId}`)
       const enhancedWordsStr = localStorage.getItem(`wenya_enhanced_words_${userId}`)
-      const userWords = userWordsStr ? JSON.parse(userWordsStr) : []
-      const enhancedWords = enhancedWordsStr ? JSON.parse(enhancedWordsStr) : []
+      const userWords = parseStoredJson<any[]>(userWordsStr, [])
+      const enhancedWords = parseStoredJson<any[]>(enhancedWordsStr, [])
       const allWords = [...userWords, ...enhancedWords]
 
       // 计算单词统计
@@ -104,7 +122,7 @@ export default function GrowthStarMapPage() {
       let todayStudyTime = 0
 
       if (sessionStr) {
-        const session = JSON.parse(sessionStr)
+        const session = parseStoredJson<any>(sessionStr, {})
         todayCompleted += session.totalWords || 0
         todayCorrect += session.correctCount || 0
         todayWrong += session.wrongCount || 0
@@ -112,7 +130,7 @@ export default function GrowthStarMapPage() {
       }
 
       if (enhancedStatsStr) {
-        const stats = JSON.parse(enhancedStatsStr)
+        const stats = parseStoredJson<any>(enhancedStatsStr, {})
         todayCompleted += stats.todayWords || 0
         todayCorrect += stats.todayCorrect || 0
         todayWrong += stats.todayWrong || 0
@@ -135,11 +153,11 @@ export default function GrowthStarMapPage() {
         
         let dayTotal = 0
         if (daySession) {
-          const s = JSON.parse(daySession)
+          const s = parseStoredJson<any>(daySession, {})
           dayTotal += s.totalWords || 0
         }
         if (dayStats) {
-          const s = JSON.parse(dayStats)
+          const s = parseStoredJson<any>(dayStats, {})
           dayTotal += s.todayWords || 0
         }
         
@@ -158,7 +176,7 @@ export default function GrowthStarMapPage() {
         const dateStr = date.toISOString().split('T')[0]
         const daySession = localStorage.getItem(`wenya_study_session_${userId}_${dateStr}`)
         if (daySession) {
-          const s = JSON.parse(daySession)
+          const s = parseStoredJson<any>(daySession, {})
           weekStudyTime += s.studyTime || 0
         }
       }
@@ -167,7 +185,7 @@ export default function GrowthStarMapPage() {
       const smartDataStr = localStorage.getItem(`wenya_smart_learning_${userId}`)
       let totalStudyTime = weekStudyTime
       if (smartDataStr) {
-        const smartData = JSON.parse(smartDataStr)
+        const smartData = parseStoredJson<any>(smartDataStr, {})
         totalStudyTime = smartData.totalStudyTime || weekStudyTime
       }
 
@@ -214,7 +232,7 @@ export default function GrowthStarMapPage() {
         const daySession = localStorage.getItem(`wenya_study_session_${userId}_${dateStr}`)
         let count = 0
         if (daySession) {
-          const s = JSON.parse(daySession)
+          const s = parseStoredJson<any>(daySession, {})
           count = s.totalWords || 0
         }
         
@@ -293,6 +311,29 @@ export default function GrowthStarMapPage() {
     loadData()
   }, [])
 
+  useEffect(() => {
+    if (!data) return
+
+    const updateSizes = () => {
+      setMemoryChartWidth(Math.floor(memoryChartRef.current?.clientWidth || 0))
+      setVocabularyChartWidth(Math.floor(vocabularyChartRef.current?.clientWidth || 0))
+      setChartsReady(true)
+    }
+
+    updateSizes()
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateSizes) : null
+    if (observer) {
+      if (memoryChartRef.current) observer.observe(memoryChartRef.current)
+      if (vocabularyChartRef.current) observer.observe(vocabularyChartRef.current)
+    }
+    window.addEventListener('resize', updateSizes)
+
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', updateSizes)
+    }
+  }, [data])
+
   if (!mounted || !data) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-cosmos-900 via-cosmos-800 to-cosmos-900 flex items-center justify-center">
@@ -311,43 +352,47 @@ export default function GrowthStarMapPage() {
         <Battery className="w-5 h-5 text-sprout-400" />
         记忆遗忘曲线
       </h2>
-      <div className="h-80">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data.memoryData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-            <XAxis 
-              dataKey="word" 
-              stroke="#9CA3AF"
-              fontSize={12}
-            />
-            <YAxis 
-              stroke="#9CA3AF"
-              fontSize={12}
-              domain={[0, 100]}
-            />
-            <Tooltip 
-              contentStyle={{
-                backgroundColor: '#1F2937',
-                border: '1px solid #374151',
-                borderRadius: '8px',
-                color: '#F3F4F6'
-              }}
-            />
-            <Line 
-              type="monotone" 
-              dataKey="retention" 
-              stroke="#22C55E" 
-              strokeWidth={3}
-              dot={{ fill: '#22C55E', strokeWidth: 2, r: 6 }}
-              activeDot={{ r: 8, fill: '#16A34A' }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+      <div ref={memoryChartRef} className="h-80 min-w-0 overflow-hidden">
+        {chartsReady && memoryChartWidth > 0 && data.memoryData.length > 0 ? (
+            <LineChart width={memoryChartWidth} height={320} data={data.memoryData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <XAxis 
+                dataKey="word" 
+                stroke="#9CA3AF"
+                fontSize={12}
+              />
+              <YAxis 
+                stroke="#9CA3AF"
+                fontSize={12}
+                domain={[0, 100]}
+              />
+              <Tooltip 
+                contentStyle={{
+                  backgroundColor: '#1F2937',
+                  border: '1px solid #374151',
+                  borderRadius: '8px',
+                  color: '#F3F4F6'
+                }}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="retention" 
+                stroke="#22C55E" 
+                strokeWidth={3}
+                dot={{ fill: '#22C55E', strokeWidth: 2, r: 6 }}
+                activeDot={{ r: 8, fill: '#16A34A' }}
+              />
+            </LineChart>
+        ) : (
+          <div className="flex h-full items-center justify-center rounded-xl border border-cosmos-700/60 bg-cosmos-800/30 text-sm text-cosmos-400">
+            完成一次背单词后，这里会生成记忆曲线。
+          </div>
+        )}
       </div>
       <div className="mt-4 grid grid-cols-3 gap-4 text-sm">
         <div className="text-center">
           <div className="text-sprout-400 font-bold text-lg">
-            {Math.round(data.memoryData.reduce((acc, item) => acc + item.retention, 0) / data.memoryData.length)}%
+            {data.memoryData.length > 0 ? Math.round(data.memoryData.reduce((acc, item) => acc + item.retention, 0) / data.memoryData.length) : 0}%
           </div>
           <div className="text-cosmos-400">平均记忆率</div>
         </div>
@@ -374,48 +419,52 @@ export default function GrowthStarMapPage() {
         <BarChart3 className="w-5 h-5 text-star-400" />
         词汇累积趋势
       </h2>
-      <div className="h-80">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data.vocabularyData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-            <XAxis 
-              dataKey="date" 
-              stroke="#9CA3AF"
-              fontSize={12}
-            />
-            <YAxis 
-              stroke="#9CA3AF"
-              fontSize={12}
-            />
-            <Tooltip 
-              contentStyle={{
-                backgroundColor: '#1F2937',
-                border: '1px solid #374151',
-                borderRadius: '8px',
-                color: '#F3F4F6'
-              }}
-            />
-            <Legend />
-            <Area
-              type="monotone"
-              dataKey="mastered"
-              stackId="1"
-              stroke="#22C55E"
-              fill="#22C55E"
-              fillOpacity={0.8}
-              name="已掌握"
-            />
-            <Area
-              type="monotone"
-              dataKey="learning"
-              stackId="1"
-              stroke="#F59E0B"
-              fill="#F59E0B"
-              fillOpacity={0.6}
-              name="学习中"
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+      <div ref={vocabularyChartRef} className="h-80 min-w-0 overflow-hidden">
+        {chartsReady && vocabularyChartWidth > 0 && data.vocabularyData.length > 0 ? (
+            <AreaChart width={vocabularyChartWidth} height={320} data={data.vocabularyData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <XAxis 
+                dataKey="date" 
+                stroke="#9CA3AF"
+                fontSize={12}
+              />
+              <YAxis 
+                stroke="#9CA3AF"
+                fontSize={12}
+              />
+              <Tooltip 
+                contentStyle={{
+                  backgroundColor: '#1F2937',
+                  border: '1px solid #374151',
+                  borderRadius: '8px',
+                  color: '#F3F4F6'
+                }}
+              />
+              <Legend />
+              <Area
+                type="monotone"
+                dataKey="mastered"
+                stackId="1"
+                stroke="#22C55E"
+                fill="#22C55E"
+                fillOpacity={0.8}
+                name="已掌握"
+              />
+              <Area
+                type="monotone"
+                dataKey="learning"
+                stackId="1"
+                stroke="#F59E0B"
+                fill="#F59E0B"
+                fillOpacity={0.6}
+                name="学习中"
+              />
+            </AreaChart>
+        ) : (
+          <div className="flex h-full items-center justify-center rounded-xl border border-cosmos-700/60 bg-cosmos-800/30 text-sm text-cosmos-400">
+            词汇积累会随学习记录更新。
+          </div>
+        )}
       </div>
       <div className="mt-4 flex justify-center gap-6 text-sm">
         <div className="flex items-center gap-2">

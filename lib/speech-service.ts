@@ -277,19 +277,14 @@ export class SpeechService {
    * @param phonetic - 音标（可选）
    */
   async speakWord(word: string, phonetic?: string): Promise<void> {
-    try {
-      // 先朗读单词
-      await this.speak(word, { rate: 0.7, pitch: 1.1 })
-      
-      // 短暂停顿
-      await new Promise(resolve => setTimeout(resolve, 300))
-      
-      // 再次朗读单词（稍快一点）
-      await this.speak(word, { rate: 0.9, pitch: 1 })
-    } catch (error) {
-      console.error('单词朗读失败:', error)
-      throw error
-    }
+    // 先朗读单词
+    await this.speak(word, { rate: 0.7, pitch: 1.1 })
+
+    // 短暂停顿
+    await new Promise(resolve => setTimeout(resolve, 300))
+
+    // 再次朗读单词（稍快一点）
+    await this.speak(word, { rate: 0.9, pitch: 1 })
   }
 
   /**
@@ -297,12 +292,7 @@ export class SpeechService {
    * @param sentence - 例句
    */
   async speakSentence(sentence: string): Promise<void> {
-    try {
-      await this.speak(sentence, { rate: 0.8, pitch: 1 })
-    } catch (error) {
-      console.error('例句朗读失败:', error)
-      throw error
-    }
+    await this.speak(sentence, { rate: 0.8, pitch: 1 })
   }
 }
 
@@ -334,8 +324,9 @@ export class SpeechPlayer {
 
     try {
       await speechService.speakWord(word, phonetic)
-    } catch (error) {
-      console.error('播放失败:', error)
+    } catch {
+      // Speech synthesis can fail in restricted browsers or without an installed voice.
+      // Keep the study flow usable and avoid noisy production console errors.
     } finally {
       this.isPlaying = false
       this.onPlayStateChange?.(false)
@@ -355,8 +346,8 @@ export class SpeechPlayer {
 
     try {
       await speechService.speakSentence(sentence)
-    } catch (error) {
-      console.error('播放失败:', error)
+    } catch {
+      // Keep manual sentence playback as a graceful no-op when browser TTS is unavailable.
     } finally {
       this.isPlaying = false
       this.onPlayStateChange?.(false)
