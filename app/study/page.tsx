@@ -347,6 +347,7 @@ export default function StudyPage() {
           <button
             onClick={() => router.push('/dashboard')}
             className="p-2 bg-cosmos-800/80 hover:bg-cosmos-700 rounded-lg text-cosmos-400 hover:text-white transition-all backdrop-blur-sm"
+            aria-label="返回学习主页"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -370,6 +371,7 @@ export default function StudyPage() {
             <button
               onClick={() => setShowHint(!showHint)}
               className="p-2 bg-cosmos-800/80 hover:bg-cosmos-700 rounded-lg text-cosmos-400 hover:text-white transition-all backdrop-blur-sm"
+              aria-label={showHint ? '隐藏翻卡提示' : '显示翻卡提示'}
             >
               {showHint ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
             </button>
@@ -418,6 +420,7 @@ export default function StudyPage() {
                         speakWord()
                       }}
                       className="p-2 bg-cosmos-700 hover:bg-cosmos-600 rounded-full text-cosmos-300 hover:text-white transition-all"
+                      aria-label={`播放 ${currentWord.word} 发音`}
                     >
                       <Volume2 className="w-5 h-5" />
                     </button>
@@ -450,6 +453,7 @@ export default function StudyPage() {
                           speakWord()
                         }}
                         className="p-1.5 bg-cosmos-700 hover:bg-cosmos-600 rounded-full text-cosmos-300 hover:text-white transition-all"
+                        aria-label={`播放 ${currentWord.word} 发音`}
                       >
                         <Volume2 className="w-4 h-4" />
                       </button>

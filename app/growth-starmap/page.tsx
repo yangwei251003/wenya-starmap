@@ -356,17 +356,17 @@ export default function GrowthStarMapPage() {
         {chartsReady && memoryChartWidth > 0 && data.memoryData.length > 0 ? (
             <LineChart width={memoryChartWidth} height={320} data={data.memoryData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis 
-                dataKey="word" 
+              <XAxis
+                dataKey="word"
                 stroke="#9CA3AF"
                 fontSize={12}
               />
-              <YAxis 
+              <YAxis
                 stroke="#9CA3AF"
                 fontSize={12}
                 domain={[0, 100]}
               />
-              <Tooltip 
+              <Tooltip
                 contentStyle={{
                   backgroundColor: '#1F2937',
                   border: '1px solid #374151',
@@ -374,10 +374,10 @@ export default function GrowthStarMapPage() {
                   color: '#F3F4F6'
                 }}
               />
-              <Line 
-                type="monotone" 
-                dataKey="retention" 
-                stroke="#22C55E" 
+              <Line
+                type="monotone"
+                dataKey="retention"
+                stroke="#22C55E"
                 strokeWidth={3}
                 dot={{ fill: '#22C55E', strokeWidth: 2, r: 6 }}
                 activeDot={{ r: 8, fill: '#16A34A' }}
@@ -423,16 +423,16 @@ export default function GrowthStarMapPage() {
         {chartsReady && vocabularyChartWidth > 0 && data.vocabularyData.length > 0 ? (
             <AreaChart width={vocabularyChartWidth} height={320} data={data.vocabularyData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis 
-                dataKey="date" 
+              <XAxis
+                dataKey="date"
                 stroke="#9CA3AF"
                 fontSize={12}
               />
-              <YAxis 
+              <YAxis
                 stroke="#9CA3AF"
                 fontSize={12}
               />
-              <Tooltip 
+              <Tooltip
                 contentStyle={{
                   backgroundColor: '#1F2937',
                   border: '1px solid #374151',

@@ -467,6 +467,7 @@ export default function VocabPage() {
             <button
               onClick={() => void speechPlayer.playWord(word.word, word.phonetic)}
               className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-[#00F5A0] text-[#07111d]"
+              aria-label={isPlaying ? '暂停单词朗读' : '播放听音练习'}
             >
               {isPlaying ? <Pause className="h-8 w-8" /> : <Play className="h-8 w-8" />}
             </button>
@@ -478,7 +479,7 @@ export default function VocabPage() {
 
           <div className="mb-5 flex items-center justify-center gap-2 text-cosmos-300">
             <span>{word.phonetic || '音标待补全'}</span>
-            <button onClick={() => void speechPlayer.playWord(word.word, word.phonetic)} className="rounded-lg p-1 hover:text-[#00F5A0]" title="播放单词">
+            <button onClick={() => void speechPlayer.playWord(word.word, word.phonetic)} className="rounded-lg p-1 hover:text-[#00F5A0]" title="播放单词" aria-label={`播放 ${word.word} 发音`}>
               <Volume2 className="h-5 w-5" />
             </button>
           </div>
@@ -506,7 +507,7 @@ export default function VocabPage() {
               <div className="rounded-lg border border-white/8 bg-black/20 p-4">
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <div className="text-xs text-cosmos-400">例句</div>
-                  <button onClick={() => void speechPlayer.playSentence(word.example)} className="text-cosmos-300 hover:text-[#00F5A0]" title="播放例句">
+                  <button onClick={() => void speechPlayer.playSentence(word.example)} className="text-cosmos-300 hover:text-[#00F5A0]" title="播放例句" aria-label="播放例句">
                     <Volume2 className="h-4 w-4" />
                   </button>
                 </div>
