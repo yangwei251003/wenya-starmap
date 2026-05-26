@@ -159,10 +159,10 @@ function profileForPath(pathname: string, reducedMotion: boolean): CosmosProfile
   ) {
     return {
       mode: 'hero',
-      starCount: Math.round(220 * lowMotion),
-      nebulaCount: 7,
-      ringCount: 7,
-      auroraCount: 6,
+      starCount: Math.round(190 * lowMotion),
+      nebulaCount: 6,
+      ringCount: 6,
+      auroraCount: 5,
       trailChance: reducedMotion ? 0 : 0.18,
       pointerRadius: 420,
       gridOpacity: 0.09,
@@ -187,9 +187,9 @@ function profileForPath(pathname: string, reducedMotion: boolean): CosmosProfile
   ) {
     return {
       mode: 'focus',
-      starCount: Math.round(150 * lowMotion),
+      starCount: Math.round(132 * lowMotion),
       nebulaCount: 5,
-      ringCount: 5,
+      ringCount: 4,
       auroraCount: 4,
       trailChance: reducedMotion ? 0 : 0.1,
       pointerRadius: 320,
@@ -202,9 +202,9 @@ function profileForPath(pathname: string, reducedMotion: boolean): CosmosProfile
 
   return {
     mode: 'calm',
-    starCount: Math.round(110 * lowMotion),
+    starCount: Math.round(96 * lowMotion),
     nebulaCount: 4,
-    ringCount: 4,
+    ringCount: 3,
     auroraCount: 3,
     trailChance: reducedMotion ? 0 : 0.06,
     pointerRadius: 260,
@@ -363,10 +363,15 @@ export function StarryBackground() {
     const canvas = canvasRef.current
     if (!canvas) return
 
-    const context = canvas.getContext('2d')
-    if (!context) return
+    const liveContext = canvas.getContext('2d')
+    if (!liveContext) return
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 2)
+    const backgroundCanvas = document.createElement('canvas')
+    const backgroundContext = backgroundCanvas.getContext('2d')
+    if (!backgroundContext) return
+
+    let context = liveContext
+    const dpr = Math.min(window.devicePixelRatio || 1, profile.mode === 'hero' ? 1.45 : 1.3)
     const seed = hashString(`${pathname}|${profile.mode}|${reducedMotion ? 'reduce' : 'motion'}`)
     const rand = createRandom(seed)
 
@@ -380,6 +385,8 @@ export function StarryBackground() {
     let pointerActive = false
     let spawnTimer = 0
     let burstCooldown = 0
+    let backgroundDirty = true
+    let lastBackgroundPaint = 0
     let trails: TrailBurst[] = []
 
     const stars = buildStars(rand, profile)
@@ -395,7 +402,11 @@ export function StarryBackground() {
       canvas.height = Math.floor(height * dpr)
       canvas.style.width = `${width}px`
       canvas.style.height = `${height}px`
-      context.setTransform(dpr, 0, 0, dpr, 0, 0)
+      backgroundCanvas.width = Math.floor(width * dpr)
+      backgroundCanvas.height = Math.floor(height * dpr)
+      liveContext.setTransform(dpr, 0, 0, dpr, 0, 0)
+      backgroundContext.setTransform(dpr, 0, 0, dpr, 0, 0)
+      backgroundDirty = true
     }
 
     const spawnTrail = (x: number, y: number) => {
@@ -636,7 +647,9 @@ export function StarryBackground() {
         context.save()
         context.translate(dx, dy)
         context.shadowColor = star.tone.aura
-        context.shadowBlur = (profile.coreGlow * 12 + star.layer * 4) * (1 + influence * 0.65)
+        context.shadowBlur = star.layer === 2
+          ? profile.coreGlow * 3
+          : (profile.coreGlow * 12 + star.layer * 4) * (1 + influence * 0.65)
         context.fillStyle = rgbaFrom(star.tone.color, alpha)
 
         context.beginPath()
@@ -714,6 +727,7 @@ export function StarryBackground() {
           life: trail.life - delta,
         }))
         .filter(trail => trail.life > 0)
+        .slice(-8)
 
       for (const trail of trails) {
         const progress = clamp(1 - trail.life / trail.ttl, 0, 1)
@@ -794,20 +808,36 @@ export function StarryBackground() {
       context.restore()
     }
 
-    const frame = (time: number) => {
-      const delta = Math.min(0.032, (time - lastTime) / 1000)
-      lastTime = time
-
+    const renderStaticLayer = (time: number) => {
+      const previousContext = context
+      context = backgroundContext
       drawBackground()
       drawNebulae(time)
       drawAurora(time)
       drawGrid(time)
       drawOrbits(time)
       drawConstellations(time)
+      drawVignette()
+      context = previousContext
+      lastBackgroundPaint = time
+      backgroundDirty = false
+    }
+
+    const frame = (time: number) => {
+      const delta = Math.min(0.032, (time - lastTime) / 1000)
+      lastTime = time
+
+      const refreshInterval = reducedMotion ? 900 : profile.mode === 'hero' ? 160 : 220
+      if (backgroundDirty || time - lastBackgroundPaint > refreshInterval) {
+        renderStaticLayer(time)
+      }
+
+      context = liveContext
+      liveContext.clearRect(0, 0, width, height)
+      liveContext.drawImage(backgroundCanvas, 0, 0, width, height)
       drawStars(time)
       drawTrails(time, delta)
       drawPointerGlow()
-      drawVignette()
 
       raf = window.requestAnimationFrame(frame)
     }
