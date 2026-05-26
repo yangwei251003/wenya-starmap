@@ -414,6 +414,9 @@ export function StarryBackground() {
     let burstCooldown = 0
     let backgroundDirty = true
     let lastBackgroundPaint = 0
+    let lastFramePaint = 0
+    let isScrolling = false
+    let scrollIdleTimer = 0
     let trails: TrailBurst[] = []
 
     const stars = buildStars(rand, profile)
@@ -462,6 +465,31 @@ export function StarryBackground() {
 
     const onPointerLeave = () => {
       pointerActive = false
+    }
+
+    const setScrolling = (value: boolean) => {
+      isScrolling = value
+      document.documentElement.classList.toggle('is-scrolling', value)
+    }
+
+    const onScroll = () => {
+      setScrolling(true)
+      pointerActive = false
+      trails = []
+      window.clearTimeout(scrollIdleTimer)
+      scrollIdleTimer = window.setTimeout(() => {
+        setScrolling(false)
+        backgroundDirty = true
+      }, 180)
+    }
+
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        setScrolling(true)
+      } else {
+        setScrolling(false)
+        backgroundDirty = true
+      }
     }
 
     const drawBackground = () => {
@@ -853,8 +881,16 @@ export function StarryBackground() {
     const frame = (time: number) => {
       const delta = Math.min(0.032, (time - lastTime) / 1000)
       lastTime = time
+      const lowPowerFrame = isScrolling || document.hidden
+      const frameInterval = lowPowerFrame ? 180 : profile.mode === 'hero' ? 33 : 40
 
-      const refreshInterval = reducedMotion ? 1100 : profile.mode === 'hero' ? 190 : 280
+      if (time - lastFramePaint < frameInterval) {
+        raf = window.requestAnimationFrame(frame)
+        return
+      }
+      lastFramePaint = time
+
+      const refreshInterval = lowPowerFrame ? 800 : reducedMotion ? 1100 : profile.mode === 'hero' ? 190 : 280
       if (backgroundDirty || time - lastBackgroundPaint > refreshInterval) {
         renderStaticLayer(time)
       }
@@ -862,26 +898,34 @@ export function StarryBackground() {
       context = liveContext
       liveContext.clearRect(0, 0, width, height)
       liveContext.drawImage(backgroundCanvas, 0, 0, width, height)
-      drawStars(time)
-      drawTrails(time, delta)
-      drawPointerGlow()
+      if (!lowPowerFrame) {
+        drawStars(time)
+        drawTrails(time, delta)
+        drawPointerGlow()
+      }
 
       raf = window.requestAnimationFrame(frame)
     }
 
     resize()
     window.addEventListener('resize', resize)
+    window.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('pointermove', onPointerMove, { passive: true })
     window.addEventListener('pointerleave', onPointerLeave)
     window.addEventListener('blur', onPointerLeave)
+    document.addEventListener('visibilitychange', onVisibilityChange)
     raf = window.requestAnimationFrame(frame)
 
     return () => {
       window.cancelAnimationFrame(raf)
+      window.clearTimeout(scrollIdleTimer)
+      document.documentElement.classList.remove('is-scrolling')
       window.removeEventListener('resize', resize)
+      window.removeEventListener('scroll', onScroll)
       window.removeEventListener('pointermove', onPointerMove)
       window.removeEventListener('pointerleave', onPointerLeave)
       window.removeEventListener('blur', onPointerLeave)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
     }
   }, [pathname, profile, reducedMotion])
 
