@@ -85,7 +85,7 @@ type TrailBurst = {
 }
 
 type CosmosProfile = {
-  mode: 'calm' | 'focus' | 'hero'
+  mode: 'calm' | 'focus' | 'hero' | 'static'
   starCount: number
   nebulaCount: number
   ringCount: number
@@ -149,6 +149,31 @@ function profileForPath(pathname: string, reducedMotion: boolean): CosmosProfile
   const lowMotion = reducedMotion ? 0.62 : 1
 
   if (
+    pathname.startsWith('/auth') ||
+    pathname.startsWith('/admin') ||
+    pathname.startsWith('/demo') ||
+    pathname.startsWith('/test-') ||
+    pathname.startsWith('/mobile') ||
+    pathname.startsWith('/study/summary') ||
+    pathname.startsWith('/study-v2/summary') ||
+    pathname.startsWith('/progress-demo')
+  ) {
+    return {
+      mode: 'static',
+      starCount: 0,
+      nebulaCount: 0,
+      ringCount: 0,
+      auroraCount: 0,
+      trailChance: 0,
+      pointerRadius: 0,
+      gridOpacity: 0,
+      vignetteStrength: 0,
+      darkenStrength: 0,
+      coreGlow: 0,
+    }
+  }
+
+  if (
     pathname === '/' ||
     pathname.startsWith('/dashboard') ||
     pathname.startsWith('/services') ||
@@ -159,11 +184,11 @@ function profileForPath(pathname: string, reducedMotion: boolean): CosmosProfile
   ) {
     return {
       mode: 'hero',
-      starCount: Math.round(190 * lowMotion),
-      nebulaCount: 6,
-      ringCount: 6,
-      auroraCount: 5,
-      trailChance: reducedMotion ? 0 : 0.18,
+      starCount: Math.round(175 * lowMotion),
+      nebulaCount: 5,
+      ringCount: 5,
+      auroraCount: 4,
+      trailChance: reducedMotion ? 0 : 0.14,
       pointerRadius: 420,
       gridOpacity: 0.09,
       vignetteStrength: 0.58,
@@ -187,11 +212,11 @@ function profileForPath(pathname: string, reducedMotion: boolean): CosmosProfile
   ) {
     return {
       mode: 'focus',
-      starCount: Math.round(132 * lowMotion),
+      starCount: Math.round(120 * lowMotion),
       nebulaCount: 5,
-      ringCount: 4,
+      ringCount: 3,
       auroraCount: 4,
-      trailChance: reducedMotion ? 0 : 0.1,
+      trailChance: reducedMotion ? 0 : 0.07,
       pointerRadius: 320,
       gridOpacity: 0.06,
       vignetteStrength: 0.5,
@@ -202,11 +227,11 @@ function profileForPath(pathname: string, reducedMotion: boolean): CosmosProfile
 
   return {
     mode: 'calm',
-    starCount: Math.round(96 * lowMotion),
+    starCount: Math.round(88 * lowMotion),
     nebulaCount: 4,
     ringCount: 3,
     auroraCount: 3,
-    trailChance: reducedMotion ? 0 : 0.06,
+    trailChance: reducedMotion ? 0 : 0.04,
     pointerRadius: 260,
     gridOpacity: 0.045,
     vignetteStrength: 0.42,
@@ -360,6 +385,8 @@ export function StarryBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
+    if (profile.mode === 'static') return
+
     const canvas = canvasRef.current
     if (!canvas) return
 
@@ -371,7 +398,7 @@ export function StarryBackground() {
     if (!backgroundContext) return
 
     let context = liveContext
-    const dpr = Math.min(window.devicePixelRatio || 1, profile.mode === 'hero' ? 1.45 : 1.3)
+    const dpr = Math.min(window.devicePixelRatio || 1, profile.mode === 'hero' ? 1.35 : 1.2)
     const seed = hashString(`${pathname}|${profile.mode}|${reducedMotion ? 'reduce' : 'motion'}`)
     const rand = createRandom(seed)
 
@@ -727,7 +754,7 @@ export function StarryBackground() {
           life: trail.life - delta,
         }))
         .filter(trail => trail.life > 0)
-        .slice(-8)
+        .slice(-6)
 
       for (const trail of trails) {
         const progress = clamp(1 - trail.life / trail.ttl, 0, 1)
@@ -827,7 +854,7 @@ export function StarryBackground() {
       const delta = Math.min(0.032, (time - lastTime) / 1000)
       lastTime = time
 
-      const refreshInterval = reducedMotion ? 900 : profile.mode === 'hero' ? 160 : 220
+      const refreshInterval = reducedMotion ? 1100 : profile.mode === 'hero' ? 190 : 280
       if (backgroundDirty || time - lastBackgroundPaint > refreshInterval) {
         renderStaticLayer(time)
       }
@@ -864,6 +891,14 @@ export function StarryBackground() {
       className="pointer-events-none fixed inset-0 overflow-hidden bg-[#030611]"
       style={{ zIndex: 0 }}
     >
+      {profile.mode === 'static' ? (
+        <>
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(33,54,89,0.24),transparent_36%),radial-gradient(circle_at_70%_25%,rgba(0,245,160,0.08),transparent_28%),linear-gradient(180deg,rgba(4,8,18,0.96)_0%,rgba(6,10,22,1)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(115deg,rgba(255,255,255,0.018)_0%,rgba(255,255,255,0)_28%,rgba(255,255,255,0.012)_50%,rgba(255,255,255,0)_74%,rgba(255,255,255,0.018)_100%)] opacity-45" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.14)_58%,rgba(0,0,0,0.58)_100%)]" />
+        </>
+      ) : (
+        <>
       <canvas
         ref={canvasRef}
         className="absolute inset-0 h-full w-full"
@@ -872,6 +907,8 @@ export function StarryBackground() {
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(9,32,54,0.32),transparent_38%),radial-gradient(circle_at_bottom,rgba(0,245,160,0.08),transparent_34%),linear-gradient(180deg,rgba(2,6,17,0.1)_0%,rgba(2,6,17,0.38)_70%,rgba(2,6,17,0.78)_100%)]" />
       <div className="absolute inset-0 bg-[linear-gradient(110deg,rgba(255,255,255,0.03)_0%,rgba(255,255,255,0)_28%,rgba(255,255,255,0.02)_50%,rgba(255,255,255,0)_74%,rgba(255,255,255,0.03)_100%)] opacity-40 mix-blend-screen" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(0,0,0,0.12)_58%,rgba(0,0,0,0.58)_100%)]" />
+        </>
+      )}
     </div>
   )
 }
