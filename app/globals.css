@@ -376,7 +376,13 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-/* 滚动时优先保障流畅度，停止后立即恢复毛玻璃质感。 */
+html.is-scrolling *,
+html.is-scrolling *::before,
+html.is-scrolling *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
 html.is-scrolling .glass,
 html.is-scrolling .backdrop-blur,
 html.is-scrolling .backdrop-blur-sm,
@@ -387,10 +393,6 @@ html.is-scrolling .backdrop-blur-2xl,
 html.is-scrolling .backdrop-blur-3xl {
   -webkit-backdrop-filter: none !important;
   backdrop-filter: none !important;
-}
-
-html.is-scrolling * {
-  scroll-behavior: auto !important;
 }
 
 /* 霓虹文字效果 */

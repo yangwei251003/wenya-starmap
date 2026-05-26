@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { StarryBackground } from '@/components/ui/StarryBackground'
+import { ScrollPerformanceGuard } from '@/components/ui/ScrollPerformanceGuard'
 import QueryProvider from '@/components/providers/QueryProvider'
 import { ServiceLauncher } from '@/components/navigation/ServiceLauncher'
 
@@ -25,6 +26,7 @@ export default function RootLayout({
     <html lang="zh-CN">
       <body className={`${fontClass} bg-cosmos-900 text-white min-h-screen`}>
         <QueryProvider>
+          <ScrollPerformanceGuard />
           {/* 动态星空背景 - 固定在最底层 */}
           <StarryBackground />
           
