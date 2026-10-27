@@ -1,0 +1,16 @@
+{
+  "name": "wenya-project-film",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio remotion/Root.tsx",
+    "render": "remotion render remotion/Root.tsx WenyaStarmapLaunchFilm out/wenya-starmap-launch-with-audio.mp4"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.466",
+    "@remotion/media": "4.0.466",
+    "remotion": "4.0.466",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  }
+}

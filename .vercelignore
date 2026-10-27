@@ -1,0 +1,22 @@
+# Vercel 忽略文件
+
+# 测试文件
+**/__tests__/**
+*.test.ts
+*.test.tsx
+jest.config.js
+jest.setup.js
+
+# 文档
+*.md
+!README.md
+
+# 开发文件
+.kiro/
+.vscode/
+.git/
+
+# 临时文件
+*.log
+.DS_Store
+Thumbs.db
